@@ -19,11 +19,26 @@ use function Mantle\Support\Helpers\get_comment_object;
  */
 class Comment_Factory extends Factory {
 	/**
+	 * Faker instance.
+	 *
+	 * @var Generator
+	 */
+	protected $faker;
+
+	/**
+	 * Taxonomy name.
+	 *
+	 * @var string
+	 */
+	protected $taxonomy;
+
+	/**
 	 * Constructor.
 	 *
-	 * @param Generator $faker Faker generator.
+	 * @param Generator $generator Faker generator.
 	 */
-	public function __construct( protected Generator $faker ) {
+	public function __construct( Generator $generator ) {
+		$this->faker = $generator;
 	}
 
 	/**

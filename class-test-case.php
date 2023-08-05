@@ -39,8 +39,6 @@ use function Mantle\Support\Helpers\collect;
 
 /**
  * Root Test Case for Mantle sites.
- *
- * Not designed for external use. Use {@see Mantle\Testkit\Test_Case} instead.
  */
 abstract class Test_Case extends BaseTestCase {
 	use Assertions,
