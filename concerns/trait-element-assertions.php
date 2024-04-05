@@ -10,6 +10,7 @@ namespace Mantle\Testing\Concerns;
 use PHPUnit\Framework\Assert as PHPUnit;
 use DOMDocument;
 use DOMXPath;
+use Symfony\Component\CssSelector\CssSelectorConverter;
 
 /**
  * Assorted Test_Cast assertions for checking for elements in a response.
@@ -17,15 +18,11 @@ use DOMXPath;
 trait Element_Assertions {
 	/**
 	 * DOM Document Storage.
-	 *
-	 * @var DOMDocument
 	 */
 	protected DOMDocument $document;
 
 	/**
 	 * Retrieve the DOM Document for the response.
-	 *
-	 * @return DOMDocument
 	 */
 	protected function get_dom_document(): DOMDocument {
 		if ( isset( $this->document ) ) {
@@ -41,12 +38,22 @@ trait Element_Assertions {
 	}
 
 	/**
+	 * Convert a CSS selector to an XPath query.
+	 *
+	 * @param string $selector The selector to convert.
+	 */
+	protected function convert_query_selector( string $selector ): string {
+		$converter = new CssSelectorConverter( true );
+
+		return $converter->toXPath( $selector );
+	}
+
+	/**
 	 * Assert that an element exists in the response.
 	 *
 	 * @param string $expression The XPath expression to execute.
-	 * @return static
 	 */
-	public function assertElementExists( string $expression ) {
+	public function assertElementExists( string $expression ): static {
 		$nodes = ( new DOMXPath( $this->get_dom_document() ) )->query( $expression );
 
 		PHPUnit::assertTrue( ! $nodes ? false : $nodes->length > 0 );
@@ -58,10 +65,9 @@ trait Element_Assertions {
 	 * Assert that an element exists by its ID.
 	 *
 	 * @param string $id The ID of the element to check.
-	 * @return static
 	 */
-	public function assertElementExistsById( string $id ) {
-		if ( 0 === strpos( $id, '#' ) ) {
+	public function assertElementExistsById( string $id ): static {
+		if ( str_starts_with( $id, '#' ) ) {
 			$id = substr( $id, 1 );
 		}
 
@@ -72,10 +78,9 @@ trait Element_Assertions {
 	 * Assert that an element exists by its class name.
 	 *
 	 * @param string $classname The classname of the element to check.
-	 * @return static
 	 */
-	public function assertElementExistsByClassName( string $classname ) {
-		if ( 0 === strpos( $classname, '.' ) ) {
+	public function assertElementExistsByClassName( string $classname ): static {
+		if ( str_starts_with( $classname, '.' ) ) {
 			$classname = substr( $classname, 1 );
 		}
 
@@ -86,9 +91,8 @@ trait Element_Assertions {
 	 * Assert that an element is missing in the response.
 	 *
 	 * @param string $expression The XPath expression to execute.
-	 * @return static
 	 */
-	public function assertElementMissing( string $expression ) {
+	public function assertElementMissing( string $expression ): static {
 		$nodes = ( new DOMXPath( $this->get_dom_document() ) )->query( $expression );
 
 		PHPUnit::assertTrue( false === $nodes || 0 === $nodes->length );
@@ -100,10 +104,9 @@ trait Element_Assertions {
 	 * Assert that an element is missing by its ID.
 	 *
 	 * @param string $id The ID of the element to check.
-	 * @return static
 	 */
-	public function assertElementMissingById( string $id ) {
-		if ( 0 === strpos( $id, '#' ) ) {
+	public function assertElementMissingById( string $id ): static {
+		if ( str_starts_with( $id, '#' ) ) {
 			$id = substr( $id, 1 );
 		}
 
@@ -114,10 +117,9 @@ trait Element_Assertions {
 	 * Assert that an element is missing by its class name.
 	 *
 	 * @param string $classname The classname of the element to check.
-	 * @return static
 	 */
-	public function assertElementMissingByClassName( string $classname ) {
-		if ( 0 === strpos( $classname, '.' ) ) {
+	public function assertElementMissingByClassName( string $classname ): static {
+		if ( str_starts_with( $classname, '.' ) ) {
 			$classname = substr( $classname, 1 );
 		}
 
@@ -128,9 +130,8 @@ trait Element_Assertions {
 	 * Assert that an element exists by tag name.
 	 *
 	 * @param string $type The type of element to check.
-	 * @return static
 	 */
-	public function assertElementExistsByTagName( string $type ) {
+	public function assertElementExistsByTagName( string $type ): static {
 		return $this->assertElementExists( sprintf( '//*[local-name()="%s"]', $type ) );
 	}
 
@@ -138,9 +139,44 @@ trait Element_Assertions {
 	 * Assert that an element is missing by tag name.
 	 *
 	 * @param string $type The type of element to check.
-	 * @return static
 	 */
-	public function assertElementMissingByTagName( string $type ) {
+	public function assertElementMissingByTagName( string $type ): static {
 		return $this->assertElementMissing( sprintf( '//*[local-name()="%s"]', $type ) );
+	}
+
+	/**
+	 * Assert that an element exists by query selector.
+	 *
+	 * @param string $selector The selector to use.
+	 */
+	public function assertElementExistsByQuerySelector( string $selector ): static {
+		return $this->assertElementExists( $this->convert_query_selector( $selector ) );
+	}
+
+	/**
+	 * Alias for assertElementExistsByQuerySelector.
+	 *
+	 * @param string $selector
+	 */
+	public function assertQuerySelectorExists( string $selector ): static {
+		return $this->assertElementExistsByQuerySelector( $selector );
+	}
+
+	/**
+	 * Assert that an element is missing by query selector.
+	 *
+	 * @param string $selector The selector to use.
+	 */
+	public function assertElementMissingByQuerySelector( string $selector ): static {
+		return $this->assertElementMissing( $this->convert_query_selector( $selector ) );
+	}
+
+	/**
+	 * Alias for assertElementMissingByQuerySelector.
+	 *
+	 * @param string $selector
+	 */
+	public function assertQuerySelectorMissing( string $selector ): static {
+		return $this->assertElementMissingByQuerySelector( $selector );
 	}
 }

@@ -21,15 +21,11 @@ class Mock_Http_Sequence {
 	/**
 	 * Indicates that invoking this sequence when it is empty should throw an
 	 * exception.
-	 *
-	 * @var bool
 	 */
 	protected bool $fail_when_empty = true;
 
 	/**
 	 * Empty response when the sequence is empty.
-	 *
-	 * @var Mock_Http_Response|null
 	 */
 	protected ?Mock_Http_Response $empty_response = null;
 
@@ -91,8 +87,6 @@ class Mock_Http_Sequence {
 
 	/**
 	 * Indicates if the sequence has any responses remaining.
-	 *
-	 * @return bool
 	 */
 	public function is_empty(): bool {
 		return empty( $this->responses );

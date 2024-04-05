@@ -121,7 +121,6 @@ trait Interacts_With_Requests {
 	 * @param (callable(string, array): TCallableReturn)|Mock_Http_Response|string|array<string, Mock_Http_Response|callable> $url_or_callback URL to fake, array of URL and response pairs, or a closure
 	 *                                                                                                                                         that will return a faked response.
 	 * @param Mock_Http_Response|callable $response Optional response object, defaults to a 200 response with no body.
-	 * @return static|Mock_Http_Response
 	 */
 	public function fake_request( Mock_Http_Response|callable|string|array|null $url_or_callback = null, Mock_Http_Response|callable $response = null ): static|Mock_Http_Response {
 		if ( is_array( $url_or_callback ) ) {
@@ -163,6 +162,16 @@ trait Interacts_With_Requests {
 		$this->stub_callbacks->push( $this->create_stub_request_callback( $url, $response ) );
 
 		return $response;
+	}
+
+	/**
+	 * Create a mock HTTP response.
+	 *
+	 * @param string $body   Response body.
+	 * @param array $headers Response headers.
+	 */
+	public function mock_response( string $body = '', array $headers = [] ): Mock_Http_Response {
+		return new Mock_Http_Response( $body, $headers );
 	}
 
 	/**
@@ -210,12 +219,11 @@ trait Interacts_With_Requests {
 	 *
 	 * @param string $url          Request URL.
 	 * @param array  $request_args Request arguments.
-	 * @return array|WP_Error|null
 	 */
 	protected function get_stub_response( $url, $request_args ): array|WP_Error|null {
 		if ( ! $this->stub_callbacks->is_empty() ) {
-			foreach ( $this->stub_callbacks as $callback ) {
-				$response = $callback( $url, $request_args );
+			foreach ( $this->stub_callbacks as $stub_callback ) {
+				$response = $stub_callback( $url, $request_args );
 
 				if ( $response instanceof Mock_Http_Response || $response instanceof Arrayable ) {
 					return $response->to_array();
@@ -274,7 +282,7 @@ trait Interacts_With_Requests {
 			$request_args['filename'] = get_temp_dir() . basename( $url );
 		}
 
-		if ( ! wp_is_writable( dirname( $request_args['filename'] ) ) ) {
+		if ( ! wp_is_writable( dirname( (string) $request_args['filename'] ) ) ) {
 			throw new RuntimeException( "The directory [{$request_args['filename']}] is not writable." );
 		}
 
@@ -295,7 +303,6 @@ trait Interacts_With_Requests {
 	 *
 	 * @param string                      $url URL to stub.
 	 * @param callable|Mock_Http_Response $response Response to send.
-	 * @return callable
 	 */
 	protected function create_stub_request_callback( string $url, Mock_Http_Response|callable $response ): callable {
 		return function( string $request_url, array $request_args ) use ( $url, $response ) {
@@ -313,7 +320,6 @@ trait Interacts_With_Requests {
 	 * Get a collection of the request pairs matching the given truth test.
 	 *
 	 * @param callable $callback Callback to invoke on each request.
-	 * @return Collection
 	 */
 	protected function recorded_requests( callable $callback ): Collection {
 		if ( empty( $this->recorded_requests ) ) {
@@ -325,8 +331,6 @@ trait Interacts_With_Requests {
 
 	/**
 	 * Report any stray requests that were made during the unit test.
-	 *
-	 * @return void
 	 */
 	protected function report_stray_requests(): void {
 		if ( ! isset( $this->recorded_actual_requests ) || $this->recorded_actual_requests->is_empty() ) {
@@ -391,8 +395,6 @@ trait Interacts_With_Requests {
 
 	/**
 	 * Assert that no request was sent.
-	 *
-	 * @return void
 	 */
 	public function assertNoRequestSent(): void {
 		PHPUnit::assertEmpty(
@@ -405,7 +407,6 @@ trait Interacts_With_Requests {
 	 * Assert a specific request count was sent.
 	 *
 	 * @param int $count Request count.
-	 * @return void
 	 */
 	public function assertRequestCount( int $count ): void {
 		PHPUnit::assertCount( $count, $this->recorded_requests );

@@ -3,6 +3,7 @@
  * Rsync_Installation trait file
  *
  * phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
+ * phpcs:disable WordPress.PHP.DiscouragedPHPFunctions.runtime_configuration_putenv
  *
  * @package Mantle
  */
@@ -33,46 +34,19 @@ trait Rsync_Installation {
 
 	/**
 	 * Storage location to rsync the codebase to.
-	 *
-	 * @var string
 	 */
 	protected ?string $rsync_to = null;
 
 	/**
 	 * Storage location to rsync the codebase from.
-	 *
-	 * @var string
 	 */
 	protected ?string $rsync_from = null;
 
 	/**
 	 * Subdirectory from the parent folder being rsync-ed to the previous working
 	 * directory.
-	 *
-	 * @var string
 	 */
 	protected ?string $rsync_subdir = '';
-
-	/**
-	 * Flag to install the VIP MU plugins.
-	 *
-	 * @var boolean
-	 */
-	protected bool $install_vip_mu_plugins = false;
-
-	/**
-	 * Flag to install a Memcache object cache drop-in.
-	 *
-	 * @var boolean
-	 */
-	protected bool $install_object_cache = false;
-
-	/**
-	 * Flag to use a SQLite db.php drop-in when rsyncing the codebase.
-	 *
-	 * @var boolean
-	 */
-	protected bool $use_sqlite_db = false;
 
 	/**
 	 * Plugin slugs or URLs to ZIP files to install after rsyncing the codebase.
@@ -86,17 +60,26 @@ trait Rsync_Installation {
 	 *
 	 * @var string[]
 	 */
-	protected array $rsync_exclusions = [
-		'.buddy-tests',
-		'.buddy',
-		'.composer',
-		'.git',
-		'.npm',
-		'.phpcs',
-		'.turbo',
-		'node_modules',
-		'phpstan.neon',
-	];
+	protected array $rsync_exclusions = [];
+
+	/**
+	 * Add the default set of exclusions to the list of exclusions to be used when rsyncing the codebase.
+	 */
+	public function with_default_exclusions(): static {
+		return $this->exclusions(
+			[
+				'.buddy',
+				'.git',
+				'.github',
+				'.npm',
+				'.phpcs',
+				'.turbo',
+				'.phpunit.result.cache',
+				'node_modules',
+				'phpstan.neon',
+			] 
+		);
+	}
 
 	/**
 	 * Rsync the code base to be located under a valid WordPress installation.
@@ -106,7 +89,6 @@ trait Rsync_Installation {
 	 *
 	 * @param string $to Location to rsync to within `wp-content`.
 	 * @param string $from Location to rsync from.
-	 * @return static
 	 */
 	public function rsync( string $to = null, string $from = null ): static {
 		$this->rsync_to   = $to ?: '/';
@@ -121,7 +103,6 @@ trait Rsync_Installation {
 	 *
 	 * @param string $to Location to rsync to.
 	 * @param string $from Location to rsync from.
-	 * @return static
 	 */
 	public function maybe_rsync( string $to = null, string $from = null ): static {
 		// Check if we are under an existing WordPress installation.
@@ -173,16 +154,15 @@ trait Rsync_Installation {
 	 * is being rsync-ed to one.
 	 *
 	 * @param bool $install Install VIP's built mu-plugins into the codebase.
-	 * @return static
 	 */
 	public function with_vip_mu_plugins( bool $install = true ): static {
 		if ( $this->is_within_wordpress_install() ) {
 			return $this;
 		}
 
-		$this->rsync_exclusions[] = 'mu-plugins';
+		$this->add_exclusion( 'mu-plugins' );
 
-		$this->install_vip_mu_plugins = $install;
+		putenv( 'MANTLE_INSTALL_VIP_MU_PLUGINS=' . ( $install ? '1' : '0' ) );
 
 		return $this;
 	}
@@ -194,7 +174,6 @@ trait Rsync_Installation {
 	 * is being rsync-ed to one.
 	 *
 	 * @param bool $install Install the object cache drop-in into the codebase.
-	 * @return static
 	 */
 	public function with_object_cache( bool $install = true ): static {
 		if ( $this->is_within_wordpress_install() ) {
@@ -208,9 +187,9 @@ trait Rsync_Installation {
 			return $this;
 		}
 
-		$this->rsync_exclusions[] = 'object-cache.php';
+		$this->add_exclusion( 'object-cache.php' );
 
-		$this->install_object_cache = $install;
+		putenv( 'MANTLE_INSTALL_OBJECT_CACHE=' . ( $install ? '1' : '0' ) );
 
 		return $this;
 	}
@@ -222,16 +201,21 @@ trait Rsync_Installation {
 	 * installation.
 	 *
 	 * @param bool $install Install the SQLite db.php drop-in into the codebase.
-	 * @return static
 	 */
 	public function with_sqlite( bool $install = true ): static {
 		if ( $this->is_within_wordpress_install() ) {
 			return $this;
 		}
 
-		$this->rsync_exclusions[] = 'db.php';
+		putenv( 'MANTLE_USE_SQLITE=' . ( $install ? '1' : '0' ) );
+		putenv( 'WP_SKIP_DB_CREATE=1' );
 
-		$this->use_sqlite_db = $install;
+		$this->exclusions(
+			[
+				'db.php',
+				'sqlite-database-integration',
+			]
+		);
 
 		return $this;
 	}
@@ -244,7 +228,6 @@ trait Rsync_Installation {
 	 *
 	 * @param string $plugin Plugin slug to install. Will be installed at /wp-content/plugins/{plugin}.
 	 * @param string $version_or_url Plugin version to install OR a URL to a ZIP file to install.
-	 * @return static
 	 */
 	public function install_plugin( string $plugin, string $version_or_url = 'latest' ): static {
 		// Ensure that the plugin slug is not a URL.
@@ -301,15 +284,41 @@ trait Rsync_Installation {
 	 * @param bool     $merge Whether to merge the exclusions with the default exclusions.
 	 */
 	public function exclusions( array $exclusions, bool $merge = true ): static {
-		$this->rsync_exclusions = $merge ? array_merge( $this->rsync_exclusions, $exclusions ) : $exclusions;
+		$this->rsync_exclusions = collect( $merge ? $this->rsync_exclusions : [] )
+			->merge( $exclusions )
+			->unique()
+			->values()
+			->all();
+
+		return $this;
+	}
+
+	/**
+	 * Add an exclusion to the list of exclusions to be used when rsyncing the codebase.
+	 *
+	 * @param string $exclusion Exclusion to add to the list of exclusions.
+	 */
+	public function add_exclusion( string $exclusion ): static {
+		return $this->exclusions( [ $exclusion ], true );
+	}
+
+	/**
+	 * Remove an exclusion from the list of exclusions to be used when rsyncing the codebase.
+	 *
+	 * @param string $exclusion Exclusion to remove from the list of exclusions.
+	 */
+	public function remove_exclusion( string $exclusion ): static {
+		$this->rsync_exclusions = collect( $this->rsync_exclusions )
+			->filter( fn ( $item ) => $item !== $exclusion )
+			->unique()
+			->values()
+			->all();
 
 		return $this;
 	}
 
 	/**
 	 * Retrieve the default installation path to rsync to.
-	 *
-	 * @return string
 	 */
 	protected function get_installation_path(): string {
 		return getenv( 'WP_CORE_DIR' ) ?: sys_get_temp_dir() . '/wordpress';
@@ -318,8 +327,6 @@ trait Rsync_Installation {
 	/**
 	 * Check if the current installation is underneath an existing WordPress
 	 * installation.
-	 *
-	 * @return bool
 	 */
 	protected function is_within_wordpress_install(): bool {
 		return false !== strpos( __DIR__, '/wp-content/' );
@@ -367,13 +374,7 @@ trait Rsync_Installation {
 				exit( 1 );
 			}
 
-			Utils::install_wordpress(
-				directory: $base_install_path,
-				install_vip_mu_plugins: $this->install_vip_mu_plugins,
-				install_object_cache: $this->install_object_cache,
-				use_sqlite_db: $this->use_sqlite_db,
-			);
-
+			Utils::install_wordpress( $base_install_path );
 			Utils::success(
 				"WordPress installed at <em>{$base_install_path}</em>",
 				'Install Rsync'
@@ -402,7 +403,7 @@ trait Rsync_Installation {
 		$output = Utils::command(
 			[
 				'rsync -aWq --no-compress',
-				collect( $this->rsync_exclusions )->map( fn( $exclusion ) => "--exclude '{$exclusion}'" )->implode( ' ' ),
+				collect( $this->rsync_exclusions )->map( fn ( $exclusion ) => "--exclude '{$exclusion}'" )->implode( ' ' ),
 				'--delete',
 				"{$this->rsync_from} {$this->rsync_to}",
 			],
@@ -476,15 +477,13 @@ trait Rsync_Installation {
 	/**
 	 * Generate the command that will be run inside the rsync-ed WordPress
 	 * installation to fire off PHPUnit.
-	 *
-	 * @return string
 	 */
 	protected function get_phpunit_command(): string {
 		$args = (array) ( $_SERVER['argv'] ?? [] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 		if ( ! empty( getenv( 'WP_PHPUNIT_PATH' ) ) ) {
 			$executable = getenv( 'WP_PHPUNIT_PATH' );
-		} elseif ( ! empty( $args[0] ) && false !== strpos( $args[0], 'phpunit' ) ) {
+		} elseif ( ! empty( $args[0] ) && false !== strpos( (string) $args[0], 'phpunit' ) ) {
 			// Use the first argument and translate it to the rsync-ed path.
 			$executable = $this->translate_location( $args[0] );
 
@@ -496,7 +495,7 @@ trait Rsync_Installation {
 				! empty( $_SERVER['PHP_SELF'] )
 				&& ! is_file( $executable )
 				&& ! is_executable( $executable )
-				&& 0 !== strpos( 'composer ', $executable )
+				&& ! str_starts_with( 'composer ', (string) $executable )
 			) {
 				$executable = $this->translate_location( $_SERVER['PHP_SELF'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 			}
@@ -519,7 +518,6 @@ trait Rsync_Installation {
 	 * location.
 	 *
 	 * @param string $path Path to translate.
-	 * @return string
 	 */
 	protected function translate_location( string $path ): string {
 		return str_replace( $this->rsync_from, $this->rsync_to, $path );
