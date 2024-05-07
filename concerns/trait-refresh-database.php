@@ -14,7 +14,7 @@ trait Refresh_Database {
 	/**
 	 * Routines to run before setupBeforeClass.
 	 */
-	public static function refresh_database_setup_before_class(): void {
+	public static function refresh_database_setup_before_class() {
 		global $wpdb;
 
 		$wpdb->suppress_errors = false;
@@ -27,14 +27,14 @@ trait Refresh_Database {
 	/**
 	 * Start the transaction on setUp().
 	 */
-	public function refresh_database_set_up(): void {
+	public function refresh_database_set_up() {
 		$this->start_transaction();
 	}
 
 	/**
 	 * Routines to run on tearDown().
 	 */
-	public function refresh_database_tear_down(): void {
+	public function refresh_database_tear_down() {
 		global $wpdb;
 		$wpdb->query( 'ROLLBACK' );
 		remove_filter( 'query', [ $this, 'create_temporary_tables' ] );
@@ -44,7 +44,7 @@ trait Refresh_Database {
 	/**
 	 * Commit the queries in a transaction.
 	 */
-	public static function commit_transaction(): void {
+	public static function commit_transaction() {
 		global $wpdb;
 		$wpdb->query( 'COMMIT;' );
 	}
@@ -52,7 +52,7 @@ trait Refresh_Database {
 	/**
 	 * Starts a database transaction.
 	 */
-	public function start_transaction(): void {
+	public function start_transaction() {
 		global $wpdb;
 		$wpdb->query( 'SET autocommit = 0;' );
 		$wpdb->query( 'START TRANSACTION;' );
@@ -67,7 +67,7 @@ trait Refresh_Database {
 	 * @return string The altered query.
 	 */
 	public function create_temporary_tables( $query ) {
-		if ( str_starts_with( trim( $query ), 'CREATE TABLE' ) ) {
+		if ( 0 === strpos( trim( $query ), 'CREATE TABLE' ) ) {
 			return substr_replace( trim( $query ), 'CREATE TEMPORARY TABLE', 0, 12 );
 		}
 		return $query;
@@ -80,7 +80,7 @@ trait Refresh_Database {
 	 * @return string The altered query.
 	 */
 	public function drop_temporary_tables( $query ) {
-		if ( str_starts_with( trim( $query ), 'DROP TABLE' ) ) {
+		if ( 0 === strpos( trim( $query ), 'DROP TABLE' ) ) {
 			return substr_replace( trim( $query ), 'DROP TEMPORARY TABLE', 0, 10 );
 		}
 		return $query;

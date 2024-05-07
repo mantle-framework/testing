@@ -77,14 +77,14 @@ class Utils {
 	 *
 	 * @param string $status Post status to unregister.
 	 */
-	public static function unregister_post_status( $status ): void {
+	public static function unregister_post_status( $status ) {
 		unset( $GLOBALS['wp_post_statuses'][ $status ] );
 	}
 
 	/**
 	 * Remove WP query vars from the global space.
 	 */
-	public static function cleanup_query_vars(): void {
+	public static function cleanup_query_vars() {
 		// Clean out globals to stop them polluting wp and wp_query.
 		foreach ( $GLOBALS['wp']->public_query_vars as $v ) {
 			unset( $GLOBALS[ $v ] );
@@ -110,7 +110,7 @@ class Utils {
 	/**
 	 * Reset `$_SERVER` variables
 	 */
-	public static function reset_server(): void {
+	public static function reset_server() {
 		$_SERVER['HTTP_HOST']       = WP_TESTS_DOMAIN;
 		$_SERVER['REMOTE_ADDR']     = '127.0.0.1'; // phpcs:ignore WordPressVIPMinimum.Variables
 		$_SERVER['REQUEST_METHOD']  = 'GET';
@@ -128,14 +128,14 @@ class Utils {
 	 *
 	 * @return string The server class name.
 	 */
-	public static function wp_rest_server_class_filter(): string {
+	public static function wp_rest_server_class_filter() {
 		return Spy_REST_Server::class;
 	}
 
 	/**
 	 * Deletes all data from the database.
 	 */
-	public static function delete_all_data(): void {
+	public static function delete_all_data() {
 		// phpcs:disable WordPress.DB,WordPressVIPMinimum.Variables
 		global $wpdb;
 
@@ -167,7 +167,7 @@ class Utils {
 	/**
 	 * Deletes all posts from the database.
 	 */
-	public static function delete_all_posts(): void {
+	public static function delete_all_posts() {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB
@@ -176,11 +176,11 @@ class Utils {
 			return;
 		}
 
-		foreach ( $all_posts as $all_post ) {
-			if ( 'attachment' === $all_post['post_type'] ) {
-				wp_delete_attachment( $all_post['ID'], true );
+		foreach ( $all_posts as $data ) {
+			if ( 'attachment' === $data['post_type'] ) {
+				wp_delete_attachment( $data['ID'], true );
 			} else {
-				wp_delete_post( $all_post['ID'], true );
+				wp_delete_post( $data['ID'], true );
 			}
 		}
 	}
@@ -193,7 +193,7 @@ class Utils {
 	 *
 	 * @since 4.2.0
 	 */
-	public static function set_default_permalink_structure_for_tests(): void {
+	public static function set_default_permalink_structure_for_tests() {
 		update_option( 'permalink_structure', static::DEFAULT_PERMALINK_STRUCTURE );
 	}
 
@@ -253,18 +253,6 @@ class Utils {
 	}
 
 	/**
-	 * Retrieve an environment variable and check if it is truthy.
-	 *
-	 * @param string $variable Variable to get.
-	 * @param bool   $default Default value used as a fallback.
-	 */
-	public static function env_bool( string $variable, bool $default ): bool {
-		$value = static::env( $variable, $default );
-
-		return in_array( strtolower( (string) $value ), [ 'true', '1', 'yes' ], true );
-	}
-
-	/**
 	 * Ensure an environment variable is is a valid string that can be passed to
 	 * to a shell script.
 	 *
@@ -273,6 +261,7 @@ class Utils {
 	 * unquoted arguments.
 	 *
 	 * @param string|bool $string String to sanitize.
+	 * @return string
 	 */
 	public static function shell_safe( string|bool $string ): string {
 		if ( is_bool( $string ) ) {
@@ -289,12 +278,16 @@ class Utils {
 	 * not install the WordPress database.
 	 *
 	 * @param string $directory Directory to install WordPress in.
+	 * @param bool   $install_vip_mu_plugins Whether to install VIP MU plugins, defaults to false.
+	 * @param bool   $install_object_cache Whether to install the object cache drop-in, defaults to false.
+	 * @param bool   $use_sqlite_db Whether to use SQLite for the database, defaults to false.
 	 */
-	public static function install_wordpress( string $directory ): void {
-		$install_vip_mu_plugins = static::env_bool( 'MANTLE_INSTALL_VIP_MU_PLUGINS', false );
-		$install_object_cache   = static::env_bool( 'MANTLE_INSTALL_OBJECT_CACHE', false );
-		$use_sqlite_db          = static::env_bool( 'MANTLE_USE_SQLITE', false );
-
+	public static function install_wordpress(
+		string $directory,
+		bool $install_vip_mu_plugins = false,
+		bool $install_object_cache = false,
+		bool $use_sqlite_db = false,
+	): void {
 		$branch = static::env( 'MANTLE_CI_BRANCH', 'HEAD' );
 
 		// Compile the variables to pass to the shell script.
@@ -398,6 +391,8 @@ class Utils {
 
 	/**
 	 * Check if the command is being run in debug mode.
+	 *
+	 * @return bool
 	 */
 	public static function is_debug_mode(): bool {
 		if ( defined( 'MANTLE_TESTING_DEBUG' ) && MANTLE_TESTING_DEBUG ) {
@@ -463,7 +458,11 @@ class Utils {
 	/**
 	 * Ensure that Composer is loaded for the current environment.
 	 */
-	public static function ensure_composer_loaded(): void {
+	public static function ensure_composer_loaded() {
+		if ( class_exists( \Composer\Autoload\ClassLoader::class ) && class_exists( Str::class ) ) {
+			return;
+		}
+
 		$paths = [
 			preg_replace( '#/vendor/.*$#', '/vendor/autoload.php', __DIR__ ),
 			__DIR__ . '/../../../vendor/autoload.php',

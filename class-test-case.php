@@ -24,7 +24,6 @@ use Mantle\Testing\Concerns\Interacts_With_Console;
 use Mantle\Testing\Concerns\Interacts_With_Container;
 use Mantle\Testing\Concerns\Interacts_With_Cron;
 use Mantle\Testing\Concerns\Interacts_With_Hooks;
-use Mantle\Testing\Concerns\Interacts_With_Mail;
 use Mantle\Testing\Concerns\Interacts_With_Requests;
 use Mantle\Testing\Concerns\Makes_Http_Requests;
 use Mantle\Testing\Concerns\Network_Admin_Screen;
@@ -44,8 +43,6 @@ use function Mantle\Support\Helpers\collect;
  * Root Test Case for Mantle sites.
  *
  * Not designed for external use. Use {@see Mantle\Testkit\Test_Case} instead.
- *
- * @property-read Application|null $app
  */
 abstract class Test_Case extends BaseTestCase {
 	use Assertions,
@@ -57,7 +54,6 @@ abstract class Test_Case extends BaseTestCase {
 		Interacts_With_Container,
 		Interacts_With_Cron,
 		Interacts_With_Hooks,
-		Interacts_With_Mail,
 		Interacts_With_Requests,
 		Makes_Http_Requests,
 		MatchesSnapshots,
@@ -73,16 +69,22 @@ abstract class Test_Case extends BaseTestCase {
 
 	/**
 	 * Application instance.
+	 *
+	 * @var Application|null
 	 */
 	protected ?Application $app = null;
 
 	/**
 	 * Factory Instance.
+	 *
+	 * @var Factory_Container|null
 	 */
 	protected static ?Factory_Container $factory;
 
 	/**
 	 * Creates the application.
+	 *
+	 * @return Application
 	 */
 	abstract public function create_application(): Application;
 
@@ -93,9 +95,10 @@ abstract class Test_Case extends BaseTestCase {
 		static::register_traits();
 
 		if ( ! empty( static::$test_uses ) ) {
+
 			static::get_test_case_traits()
 				->each(
-					function( $trait ): void {
+					function( $trait ) {
 						$method = strtolower( class_basename( $trait ) ) . '_set_up_before_class';
 
 						if ( method_exists( static::class, $method ) ) {
@@ -141,6 +144,11 @@ abstract class Test_Case extends BaseTestCase {
 
 		parent::setUp();
 
+		// Call the PHPUnit 8 'set_up' method if it exists.
+		if ( method_exists( $this, 'set_up' ) ) {
+			$this->set_up();
+		}
+
 		if ( ! isset( $this->app ) ) {
 			$this->refresh_application();
 		}
@@ -155,7 +163,7 @@ abstract class Test_Case extends BaseTestCase {
 		// Boot traits on the test case.
 		static::get_test_case_traits()
 			->each(
-				function( $trait ): void {
+				function( $trait ) {
 					$method = strtolower( class_basename( $trait ) ) . '_set_up';
 
 					if ( method_exists( $this, $method ) ) {
@@ -166,11 +174,6 @@ abstract class Test_Case extends BaseTestCase {
 
 		remove_action( 'wp_head', 'print_emoji_detection_script', 7 );
 		add_filter( 'wp_die_handler', [ WP_Die::class, 'get_handler' ] );
-
-		// Call the PHPUnit 8 'set_up' method if it exists.
-		if ( method_exists( $this, 'set_up' ) ) {
-			$this->set_up();
-		}
 	}
 
 	/**
@@ -178,7 +181,7 @@ abstract class Test_Case extends BaseTestCase {
 	 */
 	protected function tearDown(): void {
 		// phpcs:disable WordPress.WP.GlobalVariablesOverride,WordPress.NamingConventions.PrefixAllGlobals
-		global $wp_query, $wp_the_query, $wp;
+		global $wp_query, $wp;
 
 		// Call the test case's "tear_down" method if it exists.
 		if ( method_exists( $this, 'tear_down' ) ) {
@@ -189,7 +192,7 @@ abstract class Test_Case extends BaseTestCase {
 			// Tearing down requires performing priority traits in opposite order.
 			->reverse()
 			->each(
-				function( $trait ): void {
+				function( $trait ) {
 					$method = strtolower( class_basename( $trait ) ) . '_tear_down';
 
 					if ( method_exists( $this, $method ) ) {
@@ -203,10 +206,8 @@ abstract class Test_Case extends BaseTestCase {
 				restore_current_blog();
 			}
 		}
-
-		$wp_query     = new WP_Query();
-		$wp_the_query = $wp_query;
-		$wp           = new WP();
+		$wp_query = new WP_Query();
+		$wp       = new WP();
 
 		// Reset globals related to the post loop and `setup_postdata()`.
 		$post_globals = [
@@ -221,8 +222,8 @@ abstract class Test_Case extends BaseTestCase {
 			'more',
 			'numpages',
 		];
-		foreach ( $post_globals as $post_global ) {
-			$GLOBALS[ $post_global ] = null;
+		foreach ( $post_globals as $global ) {
+			$GLOBALS[ $global ] = null;
 		}
 
 		$this->unregister_all_meta_keys();
@@ -233,7 +234,6 @@ abstract class Test_Case extends BaseTestCase {
 
 		parent::tearDown();
 
-		// Reset the application instance after everything else.
 		if ( $this->app ) {
 			$this->app = null;
 
@@ -245,6 +245,8 @@ abstract class Test_Case extends BaseTestCase {
 
 	/**
 	 * Get the test case traits.
+	 *
+	 * @return Collection
 	 */
 	protected static function get_test_case_traits(): Collection {
 		// Boot traits on the test case.
@@ -262,7 +264,7 @@ abstract class Test_Case extends BaseTestCase {
 	/**
 	 * Get an array of priority traits.
 	 *
-	 * @return array<class-string>
+	 * @return array
 	 */
 	protected static function get_priority_traits(): array {
 		return [
@@ -276,14 +278,14 @@ abstract class Test_Case extends BaseTestCase {
 	/**
 	 * Register the traits that this test case uses.
 	 */
-	public static function register_traits(): void {
+	public static function register_traits() {
 		static::$test_uses = array_flip( class_uses_recursive( static::class ) );
 	}
 
 	/**
 	 * Refresh the application instance.
 	 */
-	protected function refresh_application(): void {
+	protected function refresh_application() {
 		$this->app = $this->create_application();
 
 		if ( class_exists( Facade::class ) ) {
@@ -300,6 +302,8 @@ abstract class Test_Case extends BaseTestCase {
 
 	/**
 	 * Fetches the factory object for generating WordPress fixtures.
+	 *
+	 * @return \Mantle\Database\Factory\Factory_Container
 	 */
 	protected static function factory(): Factory_Container {
 		if ( ! isset( static::$factory ) ) {
@@ -310,25 +314,24 @@ abstract class Test_Case extends BaseTestCase {
 	}
 
 	/**
-	 * Allow the factory/app to be checked against.
+	 * Allow the factory to be checked against.
 	 *
 	 * @param string $name Property name.
+	 * @return boolean
 	 */
-	public function __isset( $name ): bool {
-		return 'factory' === $name || 'app' === $name;
+	public function __isset( $name ) {
+		return 'factory' === $name;
 	}
 
 	/**
-	 * Retrieve the factory/app instance non-statically.
+	 * Retrieve the factory instance non-statically.
 	 *
 	 * @param string $name Property name.
 	 * @return mixed
 	 */
 	public function __get( $name ) {
-		return match ( $name ) {
-			'factory' => self::factory(),
-			'app' => $this->app,
-			default => null,
-		};
+		if ( 'factory' === $name ) {
+			return self::factory();
+		}
 	}
 }

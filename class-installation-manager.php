@@ -14,10 +14,9 @@ use Mantle\Support\Traits\Singleton;
  * Installation Manager
  */
 class Installation_Manager {
-	use Conditionable;
-	use Concerns\PHPUnit_Upgrade_Warning;
-	use Concerns\Rsync_Installation;
-	use Singleton;
+	use Conditionable,
+		Concerns\Rsync_Installation,
+		Singleton;
 
 	/**
 	 * Callbacks for before installation.
@@ -39,28 +38,6 @@ class Installation_Manager {
 	 * @var callable[]
 	 */
 	protected array $after_loaded_callbacks = [];
-
-	/**
-	 * Constructor.
-	 *
-	 * Ensure that any environment variables also call the subsequent methods to
-	 * configure the installation.
-	 */
-	public function __construct() {
-		$this->with_default_exclusions();
-
-		if ( Utils::env_bool( 'MANTLE_INSTALL_VIP_MU_PLUGINS', false ) ) {
-			$this->with_vip_mu_plugins();
-		}
-
-		if ( Utils::env_bool( 'MANTLE_INSTALL_OBJECT_CACHE', false ) ) {
-			$this->with_object_cache();
-		}
-
-		if ( Utils::env_bool( 'MANTLE_USE_SQLITE', false ) ) {
-			$this->with_sqlite();
-		}
-	}
 
 	/**
 	 * Define a callback to be invoked before installation.
@@ -181,6 +158,7 @@ class Installation_Manager {
 	 * Alias for `plugins()`.
 	 *
 	 * @param array<int, string> $plugins Plugin files to activate in WordPress.
+	 * @return static
 	 */
 	public function with_active_plugins( array $plugins ): static {
 		return $this->plugins( $plugins );
@@ -192,8 +170,6 @@ class Installation_Manager {
 	 * @return static
 	 */
 	public function install() {
-		$this->warn_if_phpunit_10_or_higher();
-
 		require_once __DIR__ . '/core-polyfill.php';
 
 		if ( Utils::is_debug_mode() ) {
@@ -205,8 +181,8 @@ class Installation_Manager {
 			return $this;
 		}
 
-		foreach ( $this->before_install_callbacks as $before_install_callback ) {
-			$before_install_callback();
+		foreach ( $this->before_install_callbacks as $callback ) {
+			$callback();
 		}
 
 		try {
@@ -217,8 +193,8 @@ class Installation_Manager {
 			exit( 1 );
 		}
 
-		foreach ( $this->after_install_callbacks as $after_install_callback ) {
-			$after_install_callback();
+		foreach ( $this->after_install_callbacks as $callback ) {
+			$callback();
 		}
 
 		return $this;

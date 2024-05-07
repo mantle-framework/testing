@@ -26,11 +26,15 @@ trait Interacts_With_Hooks {
 
 	/**
 	 * Expectation Container
+	 *
+	 * @var Expectation_Container|null
 	 */
 	protected ?Expectation_Container $expectation_container;
 
 	/**
 	 * Setup the trait listener.
+	 *
+	 * @return void
 	 */
 	public function interacts_with_hooks_set_up(): void {
 		$this->expectation_container = new Expectation_Container();
@@ -53,6 +57,8 @@ trait Interacts_With_Hooks {
 
 	/**
 	 * Tear down the trait.
+	 *
+	 * @return void
 	 */
 	public function interacts_with_hooks_tear_down(): void {
 		$this->hooks_fired = [];
@@ -68,6 +74,7 @@ trait Interacts_With_Hooks {
 	 *
 	 * @param string $hook Hook to check against.
 	 * @param int    $count Count to compare.
+	 * @return void
 	 */
 	public function assertHookApplied( string $hook, int $count = null ): void {
 		PHPUnit::assertNotEmpty(
@@ -97,6 +104,7 @@ trait Interacts_With_Hooks {
 	 * Assert if a hook (action/filter) was not applied.
 	 *
 	 * @param string $hook Hook to check against.
+	 * @return void
 	 */
 	public function assertHookNotApplied( string $hook ): void {
 		PHPUnit::assertEquals(
@@ -110,6 +118,7 @@ trait Interacts_With_Hooks {
 	 * Add expectation that an action applied.
 	 *
 	 * @param string $hook Action to listen to.
+	 * @return Expectation
 	 */
 	public function expectApplied( string $hook ): Expectation {
 		return $this->expectation_container->add_applied( $hook );

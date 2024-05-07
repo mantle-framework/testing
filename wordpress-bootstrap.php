@@ -5,6 +5,7 @@
  * @package Mantle
  */
 
+use Mantle\Testing\Doubles\MockPHPMailer;
 use Mantle\Testing\Utils;
 use Mantle\Testing\WP_Die;
 
@@ -28,6 +29,7 @@ global $wpdb,
        $wp_rewrite,
        $shortcode_tags,
        $wp,
+       $phpmailer,
        $table_prefix,
        $wp_theme_directories,
        $PHP_SELF;
@@ -70,7 +72,7 @@ if ( defined( 'WP_TESTS_CONFIG_FILE_PATH' ) && ! empty( WP_TESTS_CONFIG_FILE_PAT
 } else {
 	// The project is being loaded from inside a WordPress installation.
 	if ( defined( 'WP_TESTS_INSTALL_PATH' ) ) {
-		$config_file_path = preg_replace( '#/wp-content/.*$#', '/wp-tests-config.php', (string) WP_TESTS_INSTALL_PATH );
+		$config_file_path = preg_replace( '#/wp-content/.*$#', '/wp-tests-config.php', WP_TESTS_INSTALL_PATH );
 	}
 
 	if ( empty( $config_file_path ) ) {
@@ -91,11 +93,6 @@ Utils::reset_server();
 
 define( 'WP_TESTS_TABLE_PREFIX', $table_prefix );
 define( 'DIR_TESTDATA', __DIR__ . '/data' );
-
-// Set the core test constant.
-if ( ! defined( 'WP_RUN_CORE_TESTS' ) ) {
-	define( 'WP_RUN_CORE_TESTS', true );
-}
 
 /*
  * Cron tries to make an HTTP request to the site, which always fails,
@@ -120,8 +117,9 @@ $multisite = ( '1' === getenv( 'WP_MULTISITE' ) );
 $multisite = $multisite || ( defined( 'WP_TESTS_MULTISITE' ) && WP_TESTS_MULTISITE );
 $multisite = $multisite || ( defined( 'MULTISITE' ) && MULTISITE );
 
-// Replace the global phpmailer instance with a mock instance.
-reset_phpmailer_instance();
+// Override the PHPMailer.
+require_once __DIR__ . '/doubles/class-mockphpmailer.php';
+$phpmailer = new MockPHPMailer( true );
 
 // Include a WP_UnitTestCase class to allow for easier transition to the testing
 // framework.
@@ -189,11 +187,6 @@ tests_add_filter( 'async_update_translation', '__return_false' );
 // Disable background updates.
 tests_add_filter( 'automatic_updater_disabled', '__return_true' );
 
-// Disable VIP's alloptions protections during unit testing.
-tests_add_filter( 'vip_mu_plugins_loaded', function (): void {
-	remove_filter( 'pre_wp_load_alloptions', 'Automattic\\VIP\\Core\\OptionsAPI\\pre_wp_load_alloptions_protections', 999 );
-} );
-
 // Load WordPress.
 require_once ABSPATH . '/wp-settings.php';
 
@@ -206,9 +199,6 @@ if ( isset( $_SERVER['REQUEST_TIME'] ) ) {
 if ( isset( $_SERVER['REQUEST_TIME_FLOAT'] ) ) {
 	$_SERVER['REQUEST_TIME_FLOAT'] = (float) $_SERVER['REQUEST_TIME_FLOAT'];
 }
-
-// Disable VIP's alloptions protections during unit testing.
-remove_filter( 'pre_wp_load_alloptions', 'Automattic\\VIP\\Core\\OptionsAPI\\pre_wp_load_alloptions_protections', 999 );
 
 // Delete any default posts & related data.
 if ( is_blog_installed() ) {
