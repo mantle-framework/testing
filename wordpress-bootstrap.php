@@ -72,7 +72,7 @@ if ( defined( 'WP_TESTS_CONFIG_FILE_PATH' ) && ! empty( WP_TESTS_CONFIG_FILE_PAT
 } else {
 	// The project is being loaded from inside a WordPress installation.
 	if ( defined( 'WP_TESTS_INSTALL_PATH' ) ) {
-		$config_file_path = preg_replace( '#/wp-content/.*$#', '/wp-tests-config.php', (string) WP_TESTS_INSTALL_PATH );
+		$config_file_path = preg_replace( '#/wp-content/.*$#', '/wp-tests-config.php', WP_TESTS_INSTALL_PATH );
 	}
 
 	if ( empty( $config_file_path ) ) {
@@ -116,6 +116,10 @@ $_SERVER['PHP_SELF'] = '/index.php';
 $multisite = ( '1' === getenv( 'WP_MULTISITE' ) );
 $multisite = $multisite || ( defined( 'WP_TESTS_MULTISITE' ) && WP_TESTS_MULTISITE );
 $multisite = $multisite || ( defined( 'MULTISITE' ) && MULTISITE );
+
+// Override the PHPMailer.
+require_once __DIR__ . '/doubles/class-mockphpmailer.php';
+$phpmailer = new MockPHPMailer( true );
 
 // Include a WP_UnitTestCase class to allow for easier transition to the testing
 // framework.

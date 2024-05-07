@@ -11,21 +11,15 @@ namespace Mantle\Testing\Concerns;
 
 use Mantle\Database\Model\Model_Exception;
 use Mantle\Database\Model\User;
-use Mantle\Testing\Attributes\Acting_As;
 use Mantle\Testing\Exceptions\Exception;
 use PHPUnit\Framework\Assert;
 use WP_User;
-
 use function Mantle\Support\Helpers\get_user_object;
 
 /**
  * Trait to provide authentication-related testing functionality.
- *
- * @mixin \PHPUnit\Framework\TestCase
  */
 trait WordPress_Authentication {
-	use Reads_Annotations;
-
 	/**
 	 * Backed up global user ID.
 	 *
@@ -36,19 +30,14 @@ trait WordPress_Authentication {
 	/**
 	 * Backup the current global user.
 	 */
-	public function wordpress_authentication_set_up(): void {
+	public function wordpress_authentication_set_up() {
 		$this->backup_user = get_current_user_id();
-
-		// Set the test case up using the user from the attribute in descending order (class -> method).
-		foreach ( $this->get_attributes_for_method( Acting_As::class ) as $attribute ) {
-			$this->acting_as( $attribute->newInstance()->user );
-		}
 	}
 
 	/**
 	 * Restore the backed up global user.
 	 */
-	public function wordpress_authentication_tear_down(): void {
+	public function wordpress_authentication_tear_down() {
 		// If the user changed, set it back.
 		if ( get_current_user_id() !== $this->backup_user ) {
 			wp_set_current_user( $this->backup_user );
@@ -105,6 +94,7 @@ trait WordPress_Authentication {
 	 * @throws Model_Exception If the user could not be saved to the database.
 	 *
 	 * @param string $role Role.
+	 * @return User
 	 */
 	public function create_user_with_role( string $role ): User {
 		return User::factory()->as_models()->create_and_get( [ 'role' => $role ] );

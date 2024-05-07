@@ -33,7 +33,7 @@ class Mock_Action {
 	/**
 	 * Reset the events.
 	 */
-	public function reset(): void {
+	public function reset() {
 		$this->events = [];
 	}
 
@@ -86,7 +86,7 @@ class Mock_Action {
 	 * @param string $tag     Action/filter tag.
 	 * @param mixed  ...$args Arguments passed to the callback.
 	 */
-	public function filter_all( $tag, ...$args ): void {
+	public function filter_all( $tag, ...$args ) {
 		// This one doesn't return the result, so it's safe to use with the 'all' filter.
 		$this->events[] = [
 			'filter' => __FUNCTION__,
@@ -110,12 +110,13 @@ class Mock_Action {
 	 *
 	 * @param string $tag Optional. Action or filter tag. If absent, counts all
 	 *                    events.
+	 * @return int
 	 */
-	public function get_call_count( $tag = '' ): int {
+	public function get_call_count( $tag = '' ) {
 		if ( ! empty( $tag ) ) {
 			$count = 0;
-			foreach ( $this->events as $event ) {
-				if ( $event['action'] === $tag ) {
+			foreach ( $this->events as $e ) {
+				if ( $e['action'] === $tag ) {
 					++$count;
 				}
 			}

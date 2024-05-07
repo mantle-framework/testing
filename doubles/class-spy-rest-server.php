@@ -7,8 +7,8 @@ use WP_REST_Server;
 class Spy_REST_Server extends WP_REST_Server {
 
 	public array $sent_headers  = [];
-	public $sent_body;
-	public $last_request;
+	public $sent_body           = null;
+	public $last_request        = null;
 	public $override_by_default = false;
 
 	/**
@@ -28,7 +28,7 @@ class Spy_REST_Server extends WP_REST_Server {
 	 * @return mixed
 	 */
 	public function __call( $method, $args ) {
-		return call_user_func_array( [$this, $method], $args );
+		return call_user_func_array( array( $this, $method ), $args );
 	}
 
 	/**
@@ -37,7 +37,7 @@ class Spy_REST_Server extends WP_REST_Server {
 	 * @param string $header Header name.
 	 * @param string $value  Header value.
 	 */
-	public function send_header( $header, $value ): void {
+	public function send_header( $header, $value ) {
 		$this->sent_headers[ $header ] = $value;
 	}
 
@@ -46,7 +46,7 @@ class Spy_REST_Server extends WP_REST_Server {
 	 *
 	 * @param string $header Header name.
 	 */
-	public function remove_header( $header ): void {
+	public function remove_header( $header ) {
 		unset( $this->sent_headers[ $header ] );
 	}
 
@@ -71,7 +71,7 @@ class Spy_REST_Server extends WP_REST_Server {
 	 *                           Default false. Also set `$GLOBALS['wp_rest_server']->override_by_default = true`
 	 *                           to set overrides when you don't have access to the caller context.
 	 */
-	public function register_route( $namespace, $route, $route_args, $override = false ): void {
+	public function register_route( $namespace, $route, $route_args, $override = false ) {
 		parent::register_route( $namespace, $route, $route_args, $override || $this->override_by_default );
 	}
 

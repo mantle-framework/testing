@@ -126,6 +126,7 @@ trait Block_Assertions {
 	 * `match_block()`.
 	 *
 	 * @param array $args The arguments to convert.
+	 * @return array
 	 */
 	protected function convert_arguments_for_matching( array $args ): array {
 		// PHPCS is crashing on these lines for some reason. Disabling it for now

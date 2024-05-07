@@ -4,17 +4,16 @@
     "keywords": ["testing", "mantle"],
     "type": "library",
     "require": {
-        "php": "^8.1",
+        "php": "^8.0",
         "alleyinteractive/composer-wordpress-autoloader": "^1.0",
-        "mantle-framework/contracts": "^1.0",
-        "mantle-framework/database": "^1.0",
-        "mantle-framework/faker": "^1.0",
-        "mantle-framework/http-client": "^1.0",
-        "mantle-framework/http": "^1.0",
-        "mantle-framework/support": "^1.0",
+        "mantle-framework/contracts": "^0.12",
+        "mantle-framework/database": "^0.12",
+        "mantle-framework/faker": "^0.12",
+        "mantle-framework/http": "^0.12",
+        "mantle-framework/http-client": "^0.12",
+        "mantle-framework/support": "^0.12",
         "nunomaduro/termwind": "^1.15.1",
-        "symfony/css-selector": "^6.2",
-        "spatie/phpunit-snapshot-assertions": "^4.2 || ^5.1"
+        "spatie/phpunit-snapshot-assertions": "^4.2"
     },
     "extra": {
         "wordpress-autoloader": {
@@ -33,7 +32,6 @@
     "suggest": {
         "nunomaduro/collision": "For better PHPUnit printing.",
         "mantle-framework/console": "Required to assert console commands.",
-        "mantle-framework/testkit": "For running tests against a WordPress install without Mantle",
         "phpunit/phpunit": "Required to use assertions and run tests."
     },
     "config": {
