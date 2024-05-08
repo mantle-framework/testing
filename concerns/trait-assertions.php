@@ -9,7 +9,9 @@
 
 namespace Mantle\Testing\Concerns;
 
+use BackedEnum;
 use Mantle\Contracts\Database\Core_Object;
+use Mantle\Contracts\Support\Arrayable;
 use Mantle\Database\Model\Post;
 use Mantle\Database\Model\Term;
 use Mantle\Database\Model\User;
@@ -17,6 +19,7 @@ use PHPUnit\Framework\Assert as PHPUnit;
 use WP_Post;
 use WP_Term;
 
+use function Mantle\Support\Helpers\collect;
 use function Mantle\Support\Helpers\get_term_object;
 
 /**
@@ -32,7 +35,7 @@ trait Assertions {
 	 * @param mixed  $actual  The value to check.
 	 * @param string $message Optional. Message to display when the assertion fails.
 	 */
-	public static function assertWPError( $actual, $message = '' ) {
+	public static function assertWPError( $actual, $message = '' ): void {
 		PHPUnit::assertInstanceOf( 'WP_Error', $actual, $message );
 	}
 
@@ -42,7 +45,7 @@ trait Assertions {
 	 * @param mixed  $actual  The value to check.
 	 * @param string $message Optional. Message to display when the assertion fails.
 	 */
-	public static function assertNotWPError( $actual, $message = '' ) {
+	public static function assertNotWPError( $actual, $message = '' ): void {
 		if ( '' === $message && is_wp_error( $actual ) ) {
 			$message = $actual->get_error_message();
 		}
@@ -55,7 +58,7 @@ trait Assertions {
 	 * @param object $object The object to check.
 	 * @param array  $fields The fields to check.
 	 */
-	public static function assertEqualFields( $object, $fields ) {
+	public static function assertEqualFields( $object, $fields ): void {
 		foreach ( $fields as $field_name => $field_value ) {
 			if ( $object->$field_name !== $field_value ) {
 				PHPUnit::fail();
@@ -69,7 +72,7 @@ trait Assertions {
 	 * @param string $expected The expected value.
 	 * @param string $actual   The actual value.
 	 */
-	public static function assertDiscardWhitespace( $expected, $actual ) {
+	public static function assertDiscardWhitespace( $expected, $actual ): void {
 		PHPUnit::assertEquals( preg_replace( '/\s*/', '', $expected ), preg_replace( '/\s*/', '', $actual ) );
 	}
 
@@ -79,7 +82,7 @@ trait Assertions {
 	 * @param string $expected The expected value.
 	 * @param string $actual   The actual value.
 	 */
-	public static function assertEqualsIgnoreEOL( $expected, $actual ) {
+	public static function assertEqualsIgnoreEOL( $expected, $actual ): void {
 		PHPUnit::assertEquals( str_replace( "\r\n", "\n", $expected ), str_replace( "\r\n", "\n", $actual ) );
 	}
 
@@ -225,7 +228,7 @@ trait Assertions {
 
 		// Assert the same object types if strict mode.
 		if ( $strict ) {
-			PHPUnit::assertInstanceOf( get_class( $object ), $queried_object );
+			PHPUnit::assertInstanceOf( $object::class, $queried_object );
 		}
 
 		// Next, assert identifying data about the object.
@@ -270,12 +273,12 @@ trait Assertions {
 	 * @param array $arguments Arguments to query against.
 	 */
 	public function assertPostExists( array $arguments ): void {
-		$arguments = array_merge(
+		$arguments = $this->serialize_arguments(
+			$arguments,
 			[
 				'fields'         => 'ids',
 				'posts_per_page' => 1,
 			],
-			$arguments
 		);
 
 		PHPUnit::assertNotEmpty(
@@ -290,12 +293,12 @@ trait Assertions {
 	 * @param array $arguments Arguments to query against.
 	 */
 	public function assertPostDoesNotExists( array $arguments ): void {
-		$arguments = array_merge(
+		$arguments = $this->serialize_arguments(
+			$arguments,
 			[
 				'fields'         => 'ids',
 				'posts_per_page' => 1,
 			],
-			$arguments
 		);
 
 		PHPUnit::assertEmpty(
@@ -310,13 +313,13 @@ trait Assertions {
 	 * @param array $arguments Arguments to query against.
 	 */
 	public function assertTermExists( array $arguments ): void {
-		$arguments = array_merge(
+		$arguments = $this->serialize_arguments(
+			$arguments,
 			[
 				'fields'     => 'ids',
 				'count'      => 1,
 				'hide_empty' => false,
 			],
-			$arguments
 		);
 
 		PHPUnit::assertNotEmpty(
@@ -331,13 +334,13 @@ trait Assertions {
 	 * @param array $arguments Arguments to query against.
 	 */
 	public function assertTermDoesNotExists( array $arguments ): void {
-		$arguments = array_merge(
+		$arguments = $this->serialize_arguments(
+			$arguments,
 			[
 				'fields'     => 'ids',
 				'count'      => 1,
 				'hide_empty' => false,
 			],
-			$arguments
 		);
 
 		PHPUnit::assertEmpty(
@@ -351,13 +354,13 @@ trait Assertions {
 	 *
 	 * @param array $arguments Arguments to query against.
 	 */
-	public function assertUserExists( array $arguments ) {
-		$arguments = array_merge(
+	public function assertUserExists( array $arguments ): void {
+		$arguments = $this->serialize_arguments(
+			$arguments,
 			[
 				'fields' => 'ids',
 				'count'  => 1,
 			],
-			$arguments
 		);
 
 		PHPUnit::assertNotEmpty(
@@ -372,12 +375,12 @@ trait Assertions {
 	 * @param array $arguments Arguments to query against.
 	 */
 	public function assertUserDoesNotExists( array $arguments ): void {
-		$arguments = array_merge(
+		$arguments = $this->serialize_arguments(
+			$arguments,
 			[
 				'fields' => 'ids',
 				'count'  => 1,
 			],
-			$arguments
 		);
 
 		PHPUnit::assertEmpty(
@@ -390,7 +393,6 @@ trait Assertions {
 	 * Get a term object from a flexible argument.
 	 *
 	 * @param mixed $argument Term object, term ID, or term slug.
-	 * @return WP_Term|null
 	 */
 	protected function get_term_from_argument( $argument ): ?WP_Term {
 		if ( $argument instanceof Term ) {
@@ -415,7 +417,6 @@ trait Assertions {
 	 *
 	 * @param Post|\WP_Post|int $post Post to check.
 	 * @param Term|\WP_Term|int $term Term to check.
-	 * @return void
 	 */
 	public function assertPostHasTerm( Post|WP_Post|int $post, Term|WP_Term|int $term ): void {
 		if ( $post instanceof Post ) {
@@ -435,7 +436,6 @@ trait Assertions {
 	 *
 	 * @param Post|\WP_Post|int $post Post to check.
 	 * @param Term|\WP_Term|int $term Term to check.
-	 * @return void
 	 */
 	public function assertPostNotHasTerm( Post|WP_Post|int $post, Term|WP_Term|int $term ): void {
 		if ( $post instanceof Post ) {
@@ -457,5 +457,46 @@ trait Assertions {
 	 */
 	public function assertPostsDoesNotHaveTerm( Post|WP_Post|int $post, Term|WP_Term|int $term ): void {
 		$this->assertPostNotHasTerm( $post, $term );
+	}
+
+	/**
+	 * Serialize arguments for use in assertions.
+	 *
+	 * Convert string-backed enums to an array of all possible values from an enumeration.
+	 *
+	 * @param array $arguments Arguments to serialize.
+	 * @param array $defaults  Default values.
+	 */
+	protected function serialize_arguments( array $arguments, array $defaults = [] ): array {
+		$arguments = array_merge( $defaults, $arguments );
+
+		foreach ( $arguments as $key => $value ) {
+			if ( $value instanceof Arrayable ) {
+				$arguments[ $key ] = $value->to_array();
+			}
+
+			// Check for PHP 8.1+ support.
+			if ( interface_exists( BackedEnum::class ) ) {
+				// Convert an enum to an array of all possible values.
+				if ( is_string( $value ) && enum_exists( $value ) && is_subclass_of( $value, BackedEnum::class ) ) {
+					$arguments[ $key ] = collect( $value::cases() )->pluck( 'value' )->all();
+				}
+
+				// Convert an enum object to its value.
+				if ( is_object( $value ) && $value instanceof BackedEnum ) {
+					$arguments[ $key ] = $value->value;
+				}
+
+				// Convert an array of enum objects to an array of their values.
+				if ( is_array( $value ) ) {
+					$arguments[ $key ] = array_map(
+						fn ( $item ) => is_object( $item ) && $item instanceof BackedEnum ? $item->value : $item,
+						$value,
+					);
+				}
+			}
+		}
+
+		return $arguments;
 	}
 }

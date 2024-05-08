@@ -22,8 +22,6 @@ trait Core_Shim {
 	/**
 	 * Fake 'set_up' method to allow for easier transition and some PHPUnit 8
 	 * compatibility.
-	 *
-	 * @return void
 	 */
 	public function set_up() {
 		// Do nothing.
@@ -32,8 +30,6 @@ trait Core_Shim {
 	/**
 	 * Fake 'tear_down' method to allow for easier transition and some PHPUnit 8
 	 * compatibility.
-	 *
-	 * @return void
 	 */
 	public function tear_down() {
 		// Do nothing.
@@ -44,7 +40,7 @@ trait Core_Shim {
 	 *
 	 * Use in conjunction with the ms-required group.
 	 */
-	public function skipWithoutMultisite() {
+	public function skipWithoutMultisite(): void {
 		if ( ! is_multisite() ) {
 			$this->markTestSkipped( 'Test only runs on Multisite' );
 		}
@@ -55,7 +51,7 @@ trait Core_Shim {
 	 *
 	 * Use in conjunction with the ms-excluded group.
 	 */
-	public function skipWithMultisite() {
+	public function skipWithMultisite(): void {
 		if ( is_multisite() ) {
 			$this->markTestSkipped( 'Test does not run on Multisite' );
 		}
@@ -68,7 +64,7 @@ trait Core_Shim {
 	 *
 	 * @param array|WP_Error $response HTTP response.
 	 */
-	public function skipTestOnTimeout( $response ) {
+	public function skipTestOnTimeout( $response ): void {
 		if ( ! is_wp_error( $response ) ) {
 			return;
 		}
@@ -81,7 +77,7 @@ trait Core_Shim {
 			$this->markTestSkipped( 'HTTP timeout' );
 		}
 
-		if ( 0 === strpos( $response->get_error_message(), 'stream_socket_client(): unable to connect to tcp://s.w.org:80' ) ) {
+		if ( str_starts_with( $response->get_error_message(), 'stream_socket_client(): unable to connect to tcp://s.w.org:80' ) ) {
 			$this->markTestSkipped( 'HTTP timeout' );
 		}
 	}

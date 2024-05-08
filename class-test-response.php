@@ -23,36 +23,26 @@ class Test_Response {
 
 	/**
 	 * Application instance.
-	 *
-	 * @var Application
 	 */
 	protected Application $app;
 
 	/**
 	 * Response headers.
-	 *
-	 * @var array
 	 */
 	public array $headers;
 
 	/**
 	 * Response content.
-	 *
-	 * @var string
 	 */
 	protected string $content;
 
 	/**
 	 * Response status code.
-	 *
-	 * @var int
 	 */
 	protected int $status_code;
 
 	/**
 	 * Assertable JSON string.
-	 *
-	 * @var Assertable_Json_String
 	 */
 	protected Assertable_Json_String $decoded_json;
 
@@ -111,8 +101,6 @@ class Test_Response {
 
 	/**
 	 * Retrieves the status code for the current web response.
-	 *
-	 * @return int
 	 */
 	public function get_status_code(): int {
 		return $this->status_code;
@@ -165,7 +153,6 @@ class Test_Response {
 	 *
 	 * @param string      $key     Header to return.
 	 * @param string|null $default If the header is not set, default to return.
-	 * @return string|null
 	 */
 	public function get_header( string $key, string $default = null ): ?string {
 		// Enforce a lowercase header name.
@@ -301,7 +288,6 @@ class Test_Response {
 	 * Is the response a redirect of some form?
 	 *
 	 * @param string|null $location Location to check with the redirect.
-	 * @return bool
 	 */
 	public function is_redirect( string $location = null ): bool {
 		return in_array( $this->get_status_code(), [ 201, 301, 302, 303, 307, 308 ], true )
@@ -424,7 +410,7 @@ class Test_Response {
 				continue;
 			}
 
-			$value_position = mb_strpos( $content, $value, $position );
+			$value_position = mb_strpos( $content, (string) $value, $position );
 
 			if ( false === $value_position || $value_position < $position ) {
 				throw new Exception(
@@ -436,7 +422,7 @@ class Test_Response {
 				);
 			}
 
-			$position = $value_position + mb_strlen( $value );
+			$position = $value_position + mb_strlen( (string) $value );
 		}
 
 		return true;
@@ -762,8 +748,6 @@ class Test_Response {
 
 	/**
 	 * Validate and assert against the decoded JSON content.
-	 *
-	 * @return Assertable_Json_String
 	 */
 	public function decoded_json(): Assertable_Json_String {
 		if ( ! isset( $this->decoded_json ) ) {
@@ -785,11 +769,16 @@ class Test_Response {
 
 	/**
 	 * Dump the contents of the response to the screen.
-	 *
-	 * @return static
 	 */
 	public function dump(): static {
 		$content = $this->get_content();
+
+		// If the content is not JSON, dump it as is.
+		if ( 'application/json' !== $this->get_header( 'Content-Type' ) ) {
+			dump( $content );
+
+			return $this;
+		}
 
 		$json = json_decode( $content );
 
@@ -804,8 +793,6 @@ class Test_Response {
 
 	/**
 	 * Dump the headers of the response to the screen.
-	 *
-	 * @return static
 	 */
 	public function dump_headers(): static {
 		dump( $this->headers );
@@ -815,8 +802,6 @@ class Test_Response {
 
 	/**
 	 * Camel-case alias to dump_headers().
-	 *
-	 * @return static
 	 */
 	public function dumpHeaders(): static {
 		return $this->dump_headers();
@@ -826,7 +811,6 @@ class Test_Response {
 	 * Dump the JSON, optionally by path, to the screen.
 	 *
 	 * @param string|null $path
-	 * @return static
 	 */
 	public function dump_json( ?string $path = null ): static {
 		dump( $this->json( $path ) );
@@ -838,7 +822,6 @@ class Test_Response {
 	 * Camel-case alias to dump_json().
 	 *
 	 * @param string|null $path
-	 * @return static
 	 */
 	public function dumpJson( ?string $path = null ): static {
 		return $this->dump_json( $path );
@@ -846,8 +829,6 @@ class Test_Response {
 
 	/**
 	 * Dump the content from the response and end the script.
-	 *
-	 * @return void
 	 */
 	public function dd(): void {
 		$this->dump();
@@ -857,8 +838,6 @@ class Test_Response {
 
 	/**
 	 * Dump the headers from the response and end the script.
-	 *
-	 * @return void
 	 */
 	public function dd_headers(): void {
 		$this->dump_headers();
@@ -868,8 +847,6 @@ class Test_Response {
 
 	/**
 	 * Camel-case alias to dd_headers().
-	 *
-	 * @return void
 	 */
 	public function ddHeaders(): void {
 		$this->dd_headers();
@@ -879,7 +856,6 @@ class Test_Response {
 	 * Dump the JSON from the response and end the script.
 	 *
 	 * @param string|null $path
-	 * @return void
 	 */
 	public function dd_json( ?string $path = null ): void {
 		$this->dump_json( $path );
@@ -891,7 +867,6 @@ class Test_Response {
 	 * Camel-case alias to dd_json().
 	 *
 	 * @param string|null $path
-	 * @return void
 	 */
 	public function ddJson( ?string $path = null ): void {
 		$this->dd_json( $path );

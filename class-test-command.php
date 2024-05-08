@@ -25,36 +25,26 @@ use Symfony\Component\Console\Exception\CommandNotFoundException;
 class Test_Command {
 	/**
 	 * Instance of the Command Tester.
-	 *
-	 * @var CommandTester
 	 */
 	protected CommandTester $tester;
 
 	/**
 	 * Flag if the command has been executed.
-	 *
-	 * @var boolean
 	 */
 	protected bool $has_executed = false;
 
 	/**
 	 * All of the expected output lines.
-	 *
-	 * @var array
 	 */
 	public array $expected_output = [];
 
 	/**
 	 * All of the output lines that aren't expected to be displayed.
-	 *
-	 * @var array
 	 */
 	public array $unexpected_output = [];
 
 	/**
 	 * Expected exit code.
-	 *
-	 * @var int
 	 */
 	public ?int $expected_exit_code = null;
 
@@ -79,7 +69,6 @@ class Test_Command {
 	 * Add expected output.
 	 *
 	 * @param string $output
-	 * @return static
 	 */
 	public function assertOutputContains( string $output ): static {
 		$this->expected_output[] = $output;
@@ -91,7 +80,6 @@ class Test_Command {
 	 * Add unexpected output.
 	 *
 	 * @param string $output
-	 * @return static
 	 */
 	public function assertOutputNotContains( string $output ): static {
 		$this->unexpected_output[] = $output;
@@ -103,7 +91,6 @@ class Test_Command {
 	 * Add an assertion for a specific exit code.
 	 *
 	 * @param int $code
-	 * @return static
 	 */
 	public function assertExitCode( int $code ): static {
 		if ( $this->has_executed ) {
@@ -118,8 +105,6 @@ class Test_Command {
 
 	/**
 	 * Assert that a command was successful.
-	 *
-	 * @return static
 	 */
 	public function assertSuccessful(): static {
 		return $this->assertExitCode( Command::SUCCESS );
@@ -127,8 +112,6 @@ class Test_Command {
 
 	/**
 	 * Assert that a command was OK.
-	 *
-	 * @return static
 	 */
 	public function assertOk(): static {
 		return $this->assertSuccessful();
@@ -136,8 +119,6 @@ class Test_Command {
 
 	/**
 	 * Assert that a command failed.
-	 *
-	 * @return static
 	 */
 	public function assertFailed(): static {
 		return $this->assertExitCode( Command::FAILURE );
@@ -145,8 +126,6 @@ class Test_Command {
 
 	/**
 	 * Assert that a command was unsuccessful.
-	 *
-	 * @return static
 	 */
 	public function assertNotSuccessful(): static {
 		return $this->assertFailed();
@@ -165,8 +144,6 @@ class Test_Command {
 
 	/**
 	 * Execute the command.
-	 *
-	 * @return static
 	 */
 	public function execute(): static {
 		return $this->run();
@@ -174,8 +151,6 @@ class Test_Command {
 
 	/**
 	 * Retrieve the Command Tester instance.
-	 *
-	 * @return CommandTester
 	 */
 	public function get_tester(): CommandTester {
 		return $this->tester;
@@ -185,29 +160,26 @@ class Test_Command {
 	 * Verify the command is formatted properly.
 	 *
 	 * @throws InvalidArgumentException Thrown on invalid command.
-	 * @return void
 	 */
 	protected function verify_command(): void {
 		// Remove 'wp' from the command if passed.
-		if ( 0 === strpos( $this->command, 'wp ' ) ) {
+		if ( str_starts_with( $this->command, 'wp ' ) ) {
 			$this->command = substr( $this->command, 3 );
 		}
 
 		// Ensure that the command is under the 'mantle' namespace for the time being.
-		if ( 0 !== strpos( trim( $this->command ), 'mantle ' ) && 'mantle' !== $this->command ) {
+		if ( ! str_starts_with( trim( $this->command ), 'mantle ' ) && 'mantle' !== $this->command ) {
 			throw new InvalidArgumentException( 'Command must be prefixed with "mantle" to be tested against.' );
 		}
 
 		// Remove the 'mantle' prefix from the command.
-		if ( 0 === strpos( $this->command, 'mantle ' ) ) {
+		if ( str_starts_with( $this->command, 'mantle ' ) ) {
 			$this->command = substr( $this->command, 7 );
 		}
 	}
 
 	/**
 	 * Run the command.
-	 *
-	 * @return static
 	 */
 	public function run(): static {
 		$this->has_executed = true;
@@ -216,7 +188,7 @@ class Test_Command {
 			$this->tester = $this->app->make(
 				\Mantle\Framework\Console\Kernel::class
 			)->test( $this->command, $this->arguments );
-		} catch ( CommandNotFoundException $e ) {
+		} catch ( CommandNotFoundException ) {
 			$this->test->fail( "Command [{$this->command}] not found." );
 		}
 
@@ -227,8 +199,6 @@ class Test_Command {
 
 	/**
 	 * Verify the expectations after the command has been run.
-	 *
-	 * @return void
 	 */
 	protected function verify_expectations(): void {
 		// Assert that the exit code matches the expected exit code.

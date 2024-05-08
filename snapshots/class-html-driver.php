@@ -21,7 +21,6 @@ class HTML_Driver extends HtmlDriver {
 	 * Serialize data to html
 	 *
 	 * @param mixed $data Data to serialize.
-	 * @return string
 	 * @throws CantBeSerialized If data cannot be serialized.
 	 */
 	public function serialize( mixed $data ): string {
@@ -44,7 +43,7 @@ class HTML_Driver extends HtmlDriver {
 
 		// Normalize line endings for cross-platform tests.
 		if ( PHP_OS_FAMILY === 'Windows' ) {
-			$value = implode( "\n", explode( "\r\n", $value ) );
+			return implode( "\n", explode( "\r\n", $value ) );
 		}
 
 		return $value;

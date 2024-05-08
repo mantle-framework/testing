@@ -46,7 +46,6 @@ trait Create_Application {
 	 * Resolve application bindings.
 	 *
 	 * @param Application $app Application instance.
-	 * @return void
 	 */
 	final protected function resolve_application_bindings( $app ): void {
 		$app->singleton( Handler_Contract::class, Handler::class );
@@ -58,8 +57,6 @@ trait Create_Application {
 
 	/**
 	 * Default configuration for the test.
-	 *
-	 * @return array
 	 */
 	protected function get_application_config(): array {
 		return [
@@ -73,6 +70,7 @@ trait Create_Application {
 					\Mantle\Filesystem\Filesystem_Service_Provider::class,
 					\Mantle\Database\Pagination\Paginator_Service_Provider::class,
 					\Mantle\Cache\Cache_Service_Provider::class,
+					\Mantle\Application\App_Service_Provider::class,
 				],
 			],
 			'queue'      => [
@@ -129,7 +127,6 @@ trait Create_Application {
 	 * Configuration for the test.
 	 *
 	 * @param Application $app Application instance.
-	 * @return array
 	 */
 	protected function override_application_config( $app ): array {
 		return [];
@@ -189,7 +186,6 @@ trait Create_Application {
 	 * Resolve application aliases.
 	 *
 	 * @param Application $app Application instance.
-	 * @return array
 	 */
 	final protected function resolve_application_providers( $app ): array {
 		$providers = new Collection( $this->get_application_providers( $app ) );
@@ -197,9 +193,7 @@ trait Create_Application {
 
 		if ( ! empty( $overrides ) ) {
 			$providers->transform(
-				static function ( $provider ) use ( $overrides ) {
-					return $overrides[ $provider ] ?? $provider;
-				}
+				static fn ( $provider) => $overrides[ $provider ] ?? $provider
 			);
 		}
 
