@@ -17,6 +17,20 @@ use SebastianBergmann\Exporter\Exporter;
  */
 class Expectation {
 	/**
+	 * Action to expect.
+	 *
+	 * @var string
+	 */
+	protected $action;
+
+	/**
+	 * Hook to compare.
+	 *
+	 * @var string
+	 */
+	protected $hook;
+
+	/**
 	 * Arguments for the hook.
 	 *
 	 * @var mixed
@@ -25,8 +39,10 @@ class Expectation {
 
 	/**
 	 * Number of times for the hook to execute.
+	 *
+	 * @var int|null
 	 */
-	protected int|null $times = null;
+	protected $times;
 
 	/**
 	 * Return value comparison callback.
@@ -56,7 +72,10 @@ class Expectation {
 	 * @param string $hook Hook to listen to.
 	 * @param mixed  $args Arguments for the hook.
 	 */
-	public function __construct( protected readonly string $action, protected readonly string $hook, $args = null ) {
+	public function __construct( string $action, string $hook, $args = null ) {
+		$this->action = $action;
+		$this->hook   = $hook;
+
 		if ( ! empty( $args ) ) {
 			$this->args = $args;
 		}
@@ -73,7 +92,7 @@ class Expectation {
 		add_action( // @phpstan-ignore-line Action callback
 			$this->hook,
 			[ $this, 'record_start' ],
-			PHP_INT_MIN,
+			-1,
 			99
 		);
 
@@ -93,7 +112,6 @@ class Expectation {
 	 */
 	public function record_start( ...$args ) {
 		$this->record_start[] = $args;
-
 		return array_shift( $args );
 	}
 
@@ -105,14 +123,15 @@ class Expectation {
 	 */
 	public function record_stop( ...$args ) {
 		$this->record_stop[] = $args;
-
 		return array_shift( $args );
 	}
 
 	/**
 	 * Validate if an expectation meets its expectations.
+	 *
+	 * @return void
 	 */
-	public function validate(): void {
+	public function validate() {
 		$exporter = new Exporter();
 
 		if ( Expectation_Container::ACTION_APPLIED === $this->action ) {
@@ -162,14 +181,14 @@ class Expectation {
 			}
 
 			// Remove the actions for the hook.
-			remove_action( $this->hook, [ $this, 'record_start' ], PHP_INT_MIN );
+			remove_action( $this->hook, [ $this, 'record_start' ], -1 );
 			remove_action( $this->hook, [ $this, 'record_stop' ], PHP_INT_MAX );
 		}
 
 		// Asset if the action was added.
 		if ( Expectation_Container::ACTION_ADDED === $this->action ) {
 			PHPUnit::assertTrue(
-				(bool) has_action( $this->hook, $this->args ?? false ),
+				! ! has_action( $this->hook, $this->args ?? false ),
 				"Expected that hook [{$this->hook}] would have action added."
 			);
 		}
@@ -182,7 +201,6 @@ class Expectation {
 	 */
 	public function never() {
 		$this->times = 0;
-
 		return $this;
 	}
 
@@ -193,7 +211,6 @@ class Expectation {
 	 */
 	public function once() {
 		$this->times = 1;
-
 		return $this;
 	}
 
@@ -204,7 +221,6 @@ class Expectation {
 	 */
 	public function twice() {
 		$this->times = 2;
-
 		return $this;
 	}
 
@@ -212,10 +228,10 @@ class Expectation {
 	 * Assert that the action was applied a specific number of times.
 	 *
 	 * @param int $times Number of times.
+	 * @return static
 	 */
 	public function times( int $times ): static {
 		$this->times = $times;
-
 		return $this;
 	}
 
@@ -223,47 +239,39 @@ class Expectation {
 	 * Specify the arguments for the expectation.
 	 *
 	 * @param mixed ...$args Arguments.
+	 * @return static
 	 */
 	public function with( ...$args ): static {
 		$this->args = $args;
-
 		return $this;
 	}
 
 	/**
 	 * Remove checking the arguments for the action.
+	 *
+	 * @return static
 	 */
 	public function withAnyArgs(): static {
 		$this->args = null;
-
 		return $this;
 	}
 
 	/**
 	 * Specify that the filter returns a specific value.
 	 *
-	 * @param mixed ...$values Values to return.
+	 * @param mixed $value Return value.
+	 * @return static
 	 */
-	public function andReturn( mixed ...$values ): static {
+	public function andReturn( mixed $value ): static {
 		return $this->returnComparison(
-			function ( $value ) use ( $values ) {
-				foreach ( $values as $expected ) {
-					if ( is_callable( $expected ) ) {
-						return (bool) $expected( $value );
-					}
-
-					if ( $value === $expected ) {
-						return true;
-					}
-				}
-
-				return false;
-			}
+			fn ( $return_value ) => $return_value === $value
 		);
 	}
 
 	/**
 	 * Specify that the filter returns null.
+	 *
+	 * @return static
 	 */
 	public function andReturnNull(): static {
 		return $this->andReturn( null );
@@ -271,6 +279,8 @@ class Expectation {
 
 	/**
 	 * Specify that the filter returns false.
+	 *
+	 * @return static
 	 */
 	public function andReturnFalse(): static {
 		return $this->andReturn( false );
@@ -278,6 +288,8 @@ class Expectation {
 
 	/**
 	 * Specify that the filter returns true.
+	 *
+	 * @return static
 	 */
 	public function andReturnTrue(): static {
 		return $this->andReturn( true );
@@ -285,27 +297,26 @@ class Expectation {
 
 	/**
 	 * Specify that the filter returns a truthy value.
+	 *
+	 * @return static
 	 */
 	public function andReturnTruthy(): static {
-		return $this->returnComparison( fn ( $value ) => (bool) $value );
+		return $this->returnComparison( fn ( $value ) => ! ! $value );
 	}
 
 	/**
 	 * Specify that the filter returns a falsy value.
+	 *
+	 * @return static
 	 */
 	public function andReturnFalsy(): static {
 		return $this->returnComparison( fn ( $value ) => ! $value );
 	}
 
 	/**
-	 * Specify that the filter returns a boolean value.
-	 */
-	public function andReturnBoolean(): static {
-		return $this->andReturn( true, false );
-	}
-
-	/**
 	 * Specify that the filter returns an empty value.
+	 *
+	 * @return static
 	 */
 	public function andReturnEmpty(): static {
 		return $this->returnComparison( fn ( $value ) => empty( $value ) );
@@ -313,6 +324,8 @@ class Expectation {
 
 	/**
 	 * Specify that the filter returns a non-empty value.
+	 *
+	 * @return static
 	 */
 	public function andReturnNotEmpty(): static {
 		return $this->returnComparison( fn ( $value ) => ! empty( $value ) );
@@ -320,6 +333,8 @@ class Expectation {
 
 	/**
 	 * Specify that the filter returns an array value.
+	 *
+	 * @return static
 	 */
 	public function andReturnArray(): static {
 		return $this->returnComparison( fn ( $value ) => is_array( $value ) );
@@ -329,6 +344,7 @@ class Expectation {
 	 * Specify that the filter returns an instance of a class.
 	 *
 	 * @param string $class Class name.
+	 * @return static
 	 */
 	public function andReturnInstanceOf( string $class ): static {
 		return $this->returnComparison( fn ( $value ) => $value instanceof $class );
@@ -336,6 +352,8 @@ class Expectation {
 
 	/**
 	 * Specify that the filter returns a string value.
+	 *
+	 * @return static
 	 */
 	public function andReturnString(): static {
 		return $this->returnComparison( fn ( $value ) => is_string( $value ) );
@@ -343,6 +361,8 @@ class Expectation {
 
 	/**
 	 * Specify that the filter returns an integer value.
+	 *
+	 * @return static
 	 */
 	public function andReturnInteger(): static {
 		return $this->returnComparison( fn ( $value ) => is_int( $value ) );
@@ -352,6 +372,7 @@ class Expectation {
 	 * Specify the return comparison callback for the filter.
 	 *
 	 * @param callable $callback Callback.
+	 * @return static
 	 */
 	protected function returnComparison( callable $callback ): static {
 		$this->return_value_callback = $callback;

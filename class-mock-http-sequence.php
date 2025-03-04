@@ -21,11 +21,15 @@ class Mock_Http_Sequence {
 	/**
 	 * Indicates that invoking this sequence when it is empty should throw an
 	 * exception.
+	 *
+	 * @var bool
 	 */
 	protected bool $fail_when_empty = true;
 
 	/**
 	 * Empty response when the sequence is empty.
+	 *
+	 * @var Mock_Http_Response|null
 	 */
 	protected ?Mock_Http_Response $empty_response = null;
 
@@ -54,38 +58,13 @@ class Mock_Http_Sequence {
 	 *
 	 * @param int   $status Http Status.
 	 * @param array $headers Http Headers.
+	 * @return static
 	 */
-	public function push_status( int $status, array $headers = [] ): static {
+	public function push_status( int $status, array $headers = [] ) {
 		return $this->push(
 			Mock_Http_Response::create()
 				->with_response_code( $status )
 				->with_headers( $headers )
-		);
-	}
-
-	/**
-	 * Push a response with a specific body to the sequence.
-	 *
-	 * @param string $body    Response body.
-	 * @param array  $headers Response headers.
-	 */
-	public function push_body( string $body, array $headers = [] ): static {
-		return $this->push(
-			Mock_Http_Response::create( $body, $headers )
-		);
-	}
-
-	/**
-	 * Push a JSON response to the sequence.
-	 *
-	 * @param array|string $payload Data to encode as JSON.
-	 * @param array        $headers Headers to include in the response.
-	 */
-	public function push_json( array|string $payload, array $headers = [] ): static {
-		return $this->push(
-			Mock_Http_Response::create( '', $headers )
-				->with_json( $payload )
-				->with_headers( [ 'Content-Type' => 'application/json' ] )
 		);
 	}
 
@@ -112,6 +91,8 @@ class Mock_Http_Sequence {
 
 	/**
 	 * Indicates if the sequence has any responses remaining.
+	 *
+	 * @return bool
 	 */
 	public function is_empty(): bool {
 		return empty( $this->responses );

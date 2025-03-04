@@ -10,8 +10,8 @@
 namespace Mantle\Testing\Concerns;
 
 use Mantle\Support\Str;
-use Mantle\Testing\Attributes\Expected_Incorrect_Usage;
-use Mantle\Testing\Attributes\Ignore_Incorrect_Usage;
+use PHPUnit\TextUI\XmlConfiguration\PHPUnit;
+use PHPUnit\Util\Test;
 
 use function Mantle\Support\Helpers\collect;
 
@@ -23,7 +23,6 @@ use function Mantle\Support\Helpers\collect;
  */
 trait Incorrect_Usage {
 	use Output_Messages;
-	use Reads_Annotations;
 
 	/**
 	 * Expected "doing it wrong" calls.
@@ -56,8 +55,15 @@ trait Incorrect_Usage {
 	/**
 	 * Sets up the expectations for testing a deprecated call.
 	 */
-	public function incorrect_usage_set_up(): void {
-		$annotations = $this->get_annotations_for_method();
+	public function incorrect_usage_set_up() {
+		if ( ! method_exists( $this, 'getAnnotations' ) ) {
+			$annotations = Test::parseTestMethodAnnotations(
+				static::class,
+				$this->getName()
+			);
+		} else {
+			$annotations = $this->getAnnotations();
+		}
 
 		foreach ( [ 'class', 'method' ] as $depth ) {
 			if ( ! empty( $annotations[ $depth ]['expectedIncorrectUsage'] ) ) {
@@ -67,21 +73,12 @@ trait Incorrect_Usage {
 
 		add_action( 'doing_it_wrong_run', [ $this, 'doing_it_wrong_run' ] ); // @phpstan-ignore-line Action callback returns false
 		add_action( 'doing_it_wrong_trigger_error', '__return_false' ); // @phpstan-ignore-line Action callback returns false
-
-		// Allow attributes to define the expected and ignored incorrect usages.
-		foreach ( $this->get_attributes_for_method( Expected_Incorrect_Usage::class ) as $attribute ) {
-			$this->setExpectedIncorrectUsage( $attribute->newInstance()->name );
-		}
-
-		foreach ( $this->get_attributes_for_method( Ignore_Incorrect_Usage::class ) as $attribute ) {
-			$this->ignoreIncorrectUsage( $attribute->newInstance()->name );
-		}
 	}
 
 	/**
 	 * Set up handling a _doing_it_wrong() call.
 	 */
-	public function incorrect_usage_tear_down(): void {
+	public function incorrect_usage_tear_down() {
 		$errors = [];
 
 		$not_caught_doing_it_wrong = array_diff( $this->expected_doing_it_wrong, $this->caught_doing_it_wrong );
@@ -91,7 +88,7 @@ trait Incorrect_Usage {
 
 		$unexpected_doing_it_wrong = collect( $this->caught_doing_it_wrong )
 			->filter(
-				function ( string $caught ): bool {
+				function ( string $caught ) {
 					$ignored_and_expected = array_merge( $this->expected_doing_it_wrong, $this->ignored_doing_it_wrong );
 
 					if ( in_array( $caught, $ignored_and_expected, true ) ) {
@@ -129,7 +126,7 @@ trait Incorrect_Usage {
 			if ( ! empty( $errors ) ) {
 				$this->fail( 'Unexpected incorrect usage notice(s) triggered: ' . implode( ', ', $errors ) );
 			} else {
-				$this->assertTrue( true ); // @phpstan-ignore-line alreadyNarrowedType
+				$this->assertTrue( true );
 			}
 		}
 	}
@@ -145,7 +142,7 @@ trait Incorrect_Usage {
 	 *                               appears in the first argument of the source
 	 *                               `_doing_it_wrong()` call.
 	 */
-	public function setExpectedIncorrectUsage( $doing_it_wrong ): void {
+	public function setExpectedIncorrectUsage( $doing_it_wrong ) {
 		$this->expected_doing_it_wrong[] = $doing_it_wrong;
 	}
 
@@ -159,7 +156,7 @@ trait Incorrect_Usage {
 	 *                               `_doing_it_wrong()` call. Supports * as a
 	 *                               wildcard.
 	 */
-	public function ignoreIncorrectUsage( $doing_it_wrong = '*' ): void {
+	public function ignoreIncorrectUsage( $doing_it_wrong = '*' ) {
 		$this->ignored_doing_it_wrong[] = $doing_it_wrong;
 	}
 
@@ -168,7 +165,7 @@ trait Incorrect_Usage {
 	 *
 	 * @param string $function The function to add.
 	 */
-	public function doing_it_wrong_run( $function ): void {
+	public function doing_it_wrong_run( $function ) {
 		if ( ! in_array( $function, $this->caught_doing_it_wrong, true ) ) {
 			$this->caught_doing_it_wrong[] = $function;
 

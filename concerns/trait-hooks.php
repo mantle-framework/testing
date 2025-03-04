@@ -21,17 +21,17 @@ trait Hooks {
 	/**
 	 * Routines to run during setUp().
 	 */
-	public function hooks_set_up(): void {
+	public function hooks_set_up() {
 		if ( ! self::$hooks_saved ) {
-			self::backup_hooks();
+			$this->backup_hooks();
 		}
 	}
 
 	/**
 	 * Routines to run during tearDown().
 	 */
-	public function hooks_tear_down(): void {
-		self::restore_hooks();
+	public function hooks_tear_down() {
+		$this->restore_hooks();
 	}
 
 	/**
@@ -44,9 +44,10 @@ trait Hooks {
 	 * @global array $wp_current_filter
 	 * @global array $wp_filter
 	 */
-	protected static function backup_hooks(): void {
-		foreach ( [ 'wp_actions', 'wp_current_filter' ] as $global ) {
-			self::$hooks_saved[ $global ] = $GLOBALS[ $global ];
+	protected function backup_hooks() {
+		$globals = [ 'wp_actions', 'wp_current_filter' ];
+		foreach ( $globals as $key ) {
+			self::$hooks_saved[ $key ] = $GLOBALS[ $key ];
 		}
 		self::$hooks_saved['wp_filter'] = [];
 		foreach ( $GLOBALS['wp_filter'] as $hook_name => $hook_object ) {
@@ -62,11 +63,12 @@ trait Hooks {
 	 * @global array $wp_current_filter
 	 * @global array $wp_filter
 	 */
-	protected static function restore_hooks(): void {
+	protected function restore_hooks() {
 		// phpcs:disable WordPress.WP.GlobalVariablesOverride,WordPress.NamingConventions.PrefixAllGlobals
-		foreach ( [ 'wp_actions', 'wp_current_filter' ] as $global ) {
-			if ( isset( self::$hooks_saved[ $global ] ) ) {
-				$GLOBALS[ $global ] = self::$hooks_saved[ $global ];
+		$globals = [ 'wp_actions', 'wp_current_filter' ];
+		foreach ( $globals as $key ) {
+			if ( isset( self::$hooks_saved[ $key ] ) ) {
+				$GLOBALS[ $key ] = self::$hooks_saved[ $key ];
 			}
 		}
 		if ( isset( self::$hooks_saved['wp_filter'] ) ) {

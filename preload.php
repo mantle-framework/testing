@@ -22,13 +22,13 @@ namespace Mantle\Testing;
  * @param int      $accepted_args   Optional. The number of arguments the function accepts. Default 1.
  * @return true
  */
-function tests_add_filter( $tag, $function_to_add, $priority = 10, $accepted_args = 1 ): bool {
+function tests_add_filter( $tag, $function_to_add, $priority = 10, $accepted_args = 1 ) {
 	global $wp_filter;
 
 	if ( function_exists( 'add_filter' ) ) {
 		add_filter( $tag, $function_to_add, $priority, $accepted_args );
 	} else {
-		$idx = _test_filter_build_unique_id( $tag, $function_to_add );
+		$idx = _test_filter_build_unique_id( $tag, $function_to_add, $priority );
 
 		// phpcs:ignore WordPress.WP.GlobalVariablesOverride
 		$wp_filter[ $tag ][ $priority ][ $idx ] = [
@@ -46,9 +46,11 @@ function tests_add_filter( $tag, $function_to_add, $priority = 10, $accepted_arg
  *
  * @param string   $tag      Unused. The name of the filter to build ID for.
  * @param callable $function The function to generate ID for.
+ * @param int      $priority Unused. The order in which the functions
+ *                           associated with a particular action are executed.
  * @return string Unique function ID for usage as array key.
  */
-function _test_filter_build_unique_id( $tag, $function ) {
+function _test_filter_build_unique_id( $tag, $function, $priority ) {
 	if ( is_string( $function ) ) {
 		return $function;
 	}
