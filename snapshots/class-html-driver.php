@@ -21,7 +21,6 @@ class HTML_Driver extends HtmlDriver {
 	 * Serialize data to html
 	 *
 	 * @param mixed $data Data to serialize.
-	 * @return string
 	 * @throws CantBeSerialized If data cannot be serialized.
 	 */
 	public function serialize( mixed $data ): string {
@@ -38,13 +37,13 @@ class HTML_Driver extends HtmlDriver {
 		$document->preserveWhiteSpace = false; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 		$document->formatOutput       = true; // phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase
 
-		@$document->loadHTML( $data, LIBXML_HTML_NODEFDTD | LIBXML_HTML_NOIMPLIED ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		@$document->loadHTML( $data, LIBXML_HTML_NODEFDTD | LIBXML_HTML_NOIMPLIED ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, Generic.PHP.NoSilencedErrors.Forbidden
 
 		$value = $document->saveHTML();
 
 		// Normalize line endings for cross-platform tests.
 		if ( PHP_OS_FAMILY === 'Windows' ) {
-			$value = implode( "\n", explode( "\r\n", $value ) );
+			return implode( "\n", explode( "\r\n", $value ) );
 		}
 
 		return $value;

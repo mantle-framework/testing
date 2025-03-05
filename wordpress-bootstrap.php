@@ -5,7 +5,6 @@
  * @package Mantle
  */
 
-use Mantle\Testing\Doubles\MockPHPMailer;
 use Mantle\Testing\Utils;
 use Mantle\Testing\WP_Die;
 
@@ -29,7 +28,6 @@ global $wpdb,
        $wp_rewrite,
        $shortcode_tags,
        $wp,
-       $phpmailer,
        $table_prefix,
        $wp_theme_directories,
        $PHP_SELF;
@@ -72,7 +70,7 @@ if ( defined( 'WP_TESTS_CONFIG_FILE_PATH' ) && ! empty( WP_TESTS_CONFIG_FILE_PAT
 } else {
 	// The project is being loaded from inside a WordPress installation.
 	if ( defined( 'WP_TESTS_INSTALL_PATH' ) ) {
-		$config_file_path = preg_replace( '#/wp-content/.*$#', '/wp-tests-config.php', WP_TESTS_INSTALL_PATH );
+		$config_file_path = preg_replace( '#/wp-content/.*$#', '/wp-tests-config.php', (string) WP_TESTS_INSTALL_PATH );
 	}
 
 	if ( empty( $config_file_path ) ) {
@@ -89,10 +87,27 @@ if ( is_readable( $config_file_path ) ) {
 }
 
 Utils::setup_configuration();
+
+// Attempt to load the vip-config.php file if it exists to play nicely with VIP Go.
+if ( Utils::env_bool( 'MANTLE_LOAD_VIP_CONFIG', true ) ) {
+	if ( defined( 'WP_CONTENT_DIR' ) && file_exists( WP_CONTENT_DIR . '/vip-config/vip-config.php' ) ) {
+		require_once( WP_CONTENT_DIR . '/vip-config/vip-config.php' );
+	} elseif ( defined( 'ABSPATH' ) && file_exists( ABSPATH . '/wp-content/vip-config/vip-config.php' ) ) {
+		require_once( ABSPATH . '/wp-content/vip-config/vip-config.php' );
+	} elseif ( file_exists( ABSPATH . '/vip-config/vip-config.php' ) ) {
+		require_once( ABSPATH . '/vip-config/vip-config.php' );
+	}
+}
+
 Utils::reset_server();
 
 define( 'WP_TESTS_TABLE_PREFIX', $table_prefix );
 define( 'DIR_TESTDATA', __DIR__ . '/data' );
+
+// Set the core test constant.
+if ( ! defined( 'WP_RUN_CORE_TESTS' ) ) {
+	define( 'WP_RUN_CORE_TESTS', true );
+}
 
 /*
  * Cron tries to make an HTTP request to the site, which always fails,
@@ -117,9 +132,8 @@ $multisite = ( '1' === getenv( 'WP_MULTISITE' ) );
 $multisite = $multisite || ( defined( 'WP_TESTS_MULTISITE' ) && WP_TESTS_MULTISITE );
 $multisite = $multisite || ( defined( 'MULTISITE' ) && MULTISITE );
 
-// Override the PHPMailer.
-require_once __DIR__ . '/doubles/class-mockphpmailer.php';
-$phpmailer = new MockPHPMailer( true );
+// Replace the global phpmailer instance with a mock instance.
+reset_phpmailer_instance();
 
 // Include a WP_UnitTestCase class to allow for easier transition to the testing
 // framework.
@@ -131,6 +145,12 @@ if ( ! defined( 'WP_DEFAULT_THEME' ) ) {
 	define( 'WP_DEFAULT_THEME', Utils::env( 'WP_DEFAULT_THEME', 'default' ) );
 }
 
+// Bail early if this is this is a parallel test bootstrap: installation of
+// WordPress is handled in each process.
+if ( Utils::is_parallel_bootstrap() ) {
+	return;
+}
+
 $wp_theme_directories = [];
 $installing_wp        = defined( 'WP_INSTALLING' ) && WP_INSTALLING;
 
@@ -139,7 +159,9 @@ if ( ! $installing_wp && '1' !== getenv( 'WP_TESTS_SKIP_INSTALL' ) ) {
 		[
 			WP_PHP_BINARY,
 			escapeshellarg( __DIR__ . '/install-wordpress.php' ),
-			$multisite,
+			$multisite ? '1' : '0',
+			WP_TESTS_DOMAIN,
+			! empty( $_SERVER['HTTPS'] ) ? '1' : '0',
 		],
 		$retval,
 	);
@@ -187,6 +209,25 @@ tests_add_filter( 'async_update_translation', '__return_false' );
 // Disable background updates.
 tests_add_filter( 'automatic_updater_disabled', '__return_true' );
 
+// Disable VIP's alloptions protections during unit testing.
+tests_add_filter( 'vip_mu_plugins_loaded', function (): void {
+	remove_filter( 'pre_wp_load_alloptions', 'Automattic\\VIP\\Core\\OptionsAPI\\pre_wp_load_alloptions_protections', 999 );
+} );
+
+// Disable the object-cache.php drop if the MANTLE_SKIP_LOCAL_OBJECT_CACHE
+// environment variable is set.
+tests_add_filter( 'enable_loading_object_cache_dropin', function ( $enable_object_cache ) {
+	if ( Utils::env_bool( 'MANTLE_SKIP_LOCAL_OBJECT_CACHE', false ) && ! Utils::is_ci() ) {
+		if ( Utils::is_debug_mode() ) {
+			Utils::info( 'Skipping local object cache drop-in.' );
+		}
+
+		return false;
+	}
+
+	return $enable_object_cache;
+} );
+
 // Load WordPress.
 require_once ABSPATH . '/wp-settings.php';
 
@@ -199,6 +240,9 @@ if ( isset( $_SERVER['REQUEST_TIME'] ) ) {
 if ( isset( $_SERVER['REQUEST_TIME_FLOAT'] ) ) {
 	$_SERVER['REQUEST_TIME_FLOAT'] = (float) $_SERVER['REQUEST_TIME_FLOAT'];
 }
+
+// Remove the disabling of VIP's alloptions protections during unit testing.
+remove_filter( 'pre_wp_load_alloptions', 'Automattic\\VIP\\Core\\OptionsAPI\\pre_wp_load_alloptions_protections', 999 );
 
 // Delete any default posts & related data.
 if ( is_blog_installed() ) {

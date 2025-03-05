@@ -77,14 +77,14 @@ class Utils {
 	 *
 	 * @param string $status Post status to unregister.
 	 */
-	public static function unregister_post_status( $status ) {
+	public static function unregister_post_status( $status ): void {
 		unset( $GLOBALS['wp_post_statuses'][ $status ] );
 	}
 
 	/**
 	 * Remove WP query vars from the global space.
 	 */
-	public static function cleanup_query_vars() {
+	public static function cleanup_query_vars(): void {
 		// Clean out globals to stop them polluting wp and wp_query.
 		foreach ( $GLOBALS['wp']->public_query_vars as $v ) {
 			unset( $GLOBALS[ $v ] );
@@ -110,7 +110,7 @@ class Utils {
 	/**
 	 * Reset `$_SERVER` variables
 	 */
-	public static function reset_server() {
+	public static function reset_server(): void {
 		$_SERVER['HTTP_HOST']       = WP_TESTS_DOMAIN;
 		$_SERVER['REMOTE_ADDR']     = '127.0.0.1'; // phpcs:ignore WordPressVIPMinimum.Variables
 		$_SERVER['REQUEST_METHOD']  = 'GET';
@@ -120,7 +120,12 @@ class Utils {
 		$_SERVER['SERVER_PROTOCOL'] = 'HTTP/1.1';
 
 		unset( $_SERVER['HTTP_REFERER'] );
-		unset( $_SERVER['HTTPS'] );
+
+		if ( defined( 'WP_TESTS_USE_HTTPS' ) && WP_TESTS_USE_HTTPS ) {
+			$_SERVER['HTTPS'] = 'on';
+		} else {
+			unset( $_SERVER['HTTPS'] );
+		}
 	}
 
 	/**
@@ -128,14 +133,14 @@ class Utils {
 	 *
 	 * @return string The server class name.
 	 */
-	public static function wp_rest_server_class_filter() {
+	public static function wp_rest_server_class_filter(): string {
 		return Spy_REST_Server::class;
 	}
 
 	/**
 	 * Deletes all data from the database.
 	 */
-	public static function delete_all_data() {
+	public static function delete_all_data(): void {
 		// phpcs:disable WordPress.DB,WordPressVIPMinimum.Variables
 		global $wpdb;
 
@@ -167,7 +172,7 @@ class Utils {
 	/**
 	 * Deletes all posts from the database.
 	 */
-	public static function delete_all_posts() {
+	public static function delete_all_posts(): void {
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB
@@ -176,11 +181,11 @@ class Utils {
 			return;
 		}
 
-		foreach ( $all_posts as $data ) {
-			if ( 'attachment' === $data['post_type'] ) {
-				wp_delete_attachment( $data['ID'], true );
+		foreach ( $all_posts as $all_post ) {
+			if ( 'attachment' === $all_post['post_type'] ) {
+				wp_delete_attachment( $all_post['ID'], true );
 			} else {
-				wp_delete_post( $data['ID'], true );
+				wp_delete_post( $all_post['ID'], true );
 			}
 		}
 	}
@@ -193,7 +198,7 @@ class Utils {
 	 *
 	 * @since 4.2.0
 	 */
-	public static function set_default_permalink_structure_for_tests() {
+	public static function set_default_permalink_structure_for_tests(): void {
 		update_option( 'permalink_structure', static::DEFAULT_PERMALINK_STRUCTURE );
 	}
 
@@ -208,8 +213,10 @@ class Utils {
 	public static function setup_configuration(): void {
 		global $table_prefix;
 
+		$dir = defined( 'WP_TESTS_INSTALL_PATH' ) ? WP_TESTS_INSTALL_PATH : __DIR__;
+
 		// phpcs:disable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
-		defined( 'ABSPATH' ) || define( 'ABSPATH', Str::trailing_slash( preg_replace( '#/wp-content/.*$#', '/', __DIR__ ) ) );
+		defined( 'ABSPATH' ) || define( 'ABSPATH', Str::trailing_slash( preg_replace( '#/wp-content/.*$#', '/', (string) $dir ) ) );
 		defined( 'WP_DEBUG' ) || define( 'WP_DEBUG', true );
 
 		defined( 'DB_NAME' ) || define( 'DB_NAME', static::env( 'WP_DB_NAME', static::DEFAULT_DB_NAME ) );
@@ -230,11 +237,21 @@ class Utils {
 
 		$table_prefix = 'wptests_'; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 
-		defined( 'WP_TESTS_DOMAIN' ) || define( 'WP_TESTS_DOMAIN', 'example.org' );
+		defined( 'WP_TESTS_DOMAIN' ) || define( 'WP_TESTS_DOMAIN', static::env( 'WP_TESTS_DOMAIN', 'example.org' ) );
+		defined( 'WP_TESTS_USE_HTTPS' ) || define( 'WP_TESTS_USE_HTTPS', static::env_bool( 'WP_TESTS_USE_HTTPS', false ) );
 		defined( 'WP_TESTS_EMAIL' ) || define( 'WP_TESTS_EMAIL', 'admin@example.org' );
 		defined( 'WP_TESTS_TITLE' ) || define( 'WP_TESTS_TITLE', 'Test Site' );
 		defined( 'WP_PHP_BINARY' ) || define( 'WP_PHP_BINARY', 'php' );
 		defined( 'WPLANG' ) || define( 'WPLANG', '' );
+
+		// Setup the table prefix when running in parallel.
+		if ( static::is_parallel() && $token = static::parallel_token() ) {
+			$table_prefix .= "para_{$token}_"; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+
+			if ( static::is_debug_mode() ) {
+				static::info( "Using parallel table prefix: {$table_prefix}" );
+			}
+		}
 
 		// phpcs:enable WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedConstantFound
 	}
@@ -253,6 +270,18 @@ class Utils {
 	}
 
 	/**
+	 * Retrieve an environment variable and check if it is truthy.
+	 *
+	 * @param string $variable Variable to get.
+	 * @param bool   $default Default value used as a fallback.
+	 */
+	public static function env_bool( string $variable, bool $default ): bool {
+		$value = static::env( $variable, $default );
+
+		return in_array( strtolower( (string) $value ), [ 'true', '1', 'yes' ], true );
+	}
+
+	/**
 	 * Ensure an environment variable is is a valid string that can be passed to
 	 * to a shell script.
 	 *
@@ -261,7 +290,6 @@ class Utils {
 	 * unquoted arguments.
 	 *
 	 * @param string|bool $string String to sanitize.
-	 * @return string
 	 */
 	public static function shell_safe( string|bool $string ): string {
 		if ( is_bool( $string ) ) {
@@ -278,16 +306,24 @@ class Utils {
 	 * not install the WordPress database.
 	 *
 	 * @param string $directory Directory to install WordPress in.
-	 * @param bool   $install_vip_mu_plugins Whether to install VIP MU plugins, defaults to false.
-	 * @param bool   $install_object_cache Whether to install the object cache drop-in, defaults to false.
-	 * @param bool   $use_sqlite_db Whether to use SQLite for the database, defaults to false.
 	 */
-	public static function install_wordpress(
-		string $directory,
-		bool $install_vip_mu_plugins = false,
-		bool $install_object_cache = false,
-		bool $use_sqlite_db = false,
-	): void {
+	public static function install_wordpress( string $directory ): void {
+		$install_vip_mu_plugins = static::env_bool( 'MANTLE_INSTALL_VIP_MU_PLUGINS', false );
+		$use_sqlite_db          = static::env_bool( 'MANTLE_USE_SQLITE', false );
+
+		// Handle the legacy values for MANTLE_INSTALL_OBJECT_CACHE.
+		if ( static::env_bool( 'MANTLE_INSTALL_OBJECT_CACHE', false ) ) {
+			$install_object_cache = 'memcached';
+		} else {
+			$install_object_cache = static::env( 'MANTLE_INSTALL_OBJECT_CACHE', false );
+
+			if ( $install_object_cache && ! in_array( $install_object_cache, [ 'memcached', 'redis' ], true ) ) {
+				static::error( '🚨 Invalid value for MANTLE_INSTALL_OBJECT_CACHE (' . $install_object_cache . '). Ignoring...' );
+
+				$install_object_cache = false;
+			}
+		}
+
 		$branch = static::env( 'MANTLE_CI_BRANCH', 'HEAD' );
 
 		// Compile the variables to pass to the shell script.
@@ -327,7 +363,7 @@ class Utils {
 					static::shell_safe( static::env( 'WP_VERSION', 'latest' ) ),
 					static::shell_safe( static::env( 'WP_SKIP_DB_CREATE', 'false' ) ),
 					static::shell_safe( $install_vip_mu_plugins ? 'true' : 'false' ),
-					static::shell_safe( $install_object_cache ? 'true' : 'false' ),
+					static::shell_safe( $install_object_cache ),
 				]
 			)->implode( ' ' ),
 		);
@@ -391,8 +427,6 @@ class Utils {
 
 	/**
 	 * Check if the command is being run in debug mode.
-	 *
-	 * @return bool
 	 */
 	public static function is_debug_mode(): bool {
 		if ( defined( 'MANTLE_TESTING_DEBUG' ) && MANTLE_TESTING_DEBUG ) {
@@ -412,10 +446,24 @@ class Utils {
 	}
 
 	/**
+	 * Check if we're running in a CI (Continuous Integration) environment.
+	 */
+	public static function is_ci(): bool {
+		return (
+			! empty( $_SERVER['GITHUB_ENV'] )
+			|| ( ! empty( $_SERVER['CI'] ) && in_array( $_SERVER['CI'], [ 'true', '1' ], true ) )
+			|| ! empty( $_SERVER['GITHUB_REPOSITORY_OWNER'] )
+			|| ! empty( $_SERVER['GITHUB_WORKFLOW'] )
+			|| ! empty( $_SERVER['GITHUB_EVENT_NAME'] )
+		);
+	}
+
+	/**
 	 * Run a system command and return the output.
 	 *
 	 * @param string|string[] $command Command to run.
-	 * @param int             $exit_code Exit code.
+	 * @param int|null        $exit_code Exit code.
+	 * @param-out int         $exit_code Exit code.
 	 * @return string[]
 	 */
 	public static function command( $command, &$exit_code = null ) {
@@ -458,11 +506,7 @@ class Utils {
 	/**
 	 * Ensure that Composer is loaded for the current environment.
 	 */
-	public static function ensure_composer_loaded() {
-		if ( class_exists( \Composer\Autoload\ClassLoader::class ) && class_exists( Str::class ) ) {
-			return;
-		}
-
+	public static function ensure_composer_loaded(): void {
 		$paths = [
 			preg_replace( '#/vendor/.*$#', '/vendor/autoload.php', __DIR__ ),
 			__DIR__ . '/../../../vendor/autoload.php',
@@ -471,7 +515,7 @@ class Utils {
 
 		foreach ( $paths as $path ) {
 			if ( ! is_dir( $path ) && file_exists( $path ) ) {
-				require_once $path;
+				require_once $path; // phpcs:ignore WordPressVIPMinimum.Files.IncludingFile.UsingVariable
 
 				return;
 			}
@@ -497,7 +541,39 @@ class Utils {
 			return;
 		}
 
+		// Ignore deprecated errors.
+		if ( E_DEPRECATED === $error['type'] || E_USER_DEPRECATED === $error['type'] ) {
+			return;
+		}
+
 		static::error( '🚨 Error during test run:', 'Shutdown' );
-		static::code( $error );
+		static::code( $error ); // @phpstan-ignore-line argument.type
+
+		exit( 1 );
+	}
+
+	/**
+	 * Check if the current test run is parallel with paratest.
+	 */
+	public static function is_parallel(): bool {
+		return ! empty( static::parallel_token() );
+	}
+
+	/**
+	 * Retrieve the parallel token for the current test run.
+	 *
+	 * @return string
+	 */
+	public static function parallel_token(): ?string {
+		return static::env( 'TEST_TOKEN', null );
+	}
+
+	/**
+	 * Check if the current test run is the paratest bootstrap.
+	 *
+	 * The parallel token will not be set in the initial bootstrap.
+	 */
+	public static function is_parallel_bootstrap(): bool {
+		return empty( static::parallel_token() ) && isset( $_SERVER['SCRIPT_NAME'] ) && str_contains( (string) $_SERVER['SCRIPT_NAME'], 'paratest' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 	}
 }

@@ -23,7 +23,8 @@ use Mantle\Support\Traits\Macroable;
  *         ->with_header( 'Content-Type', 'application/json' );
  */
 class Mock_Http_Response implements Arrayable {
-	use Conditionable, Macroable;
+	use Conditionable;
+	use Macroable;
 
 	/**
 	 * Response data.
@@ -35,8 +36,6 @@ class Mock_Http_Response implements Arrayable {
 	/**
 	 * Http Sequences
 	 * Support for faking a series of fake responses in a specific order.
-	 *
-	 * @return Mock_Http_Sequence
 	 */
 	public static function sequence(): Mock_Http_Sequence {
 		return new Mock_Http_Sequence();
@@ -62,11 +61,24 @@ class Mock_Http_Response implements Arrayable {
 	}
 
 	/**
+	 * Ensure that a response is an instance of Mock_Http_Response.
+	 *
+	 * @param mixed $response Response.
+	 */
+	public static function ensure( mixed $response ): Mock_Http_Response {
+		if ( $response instanceof self ) {
+			return $response;
+		}
+
+		return static::create( $response );
+	}
+
+
+	/**
 	 * Helper method to create a response.
 	 *
 	 * @param string $body    Response body.
 	 * @param array  $headers Response headers.
-	 * @return Mock_Http_Response
 	 */
 	public static function create( string $body = '', array $headers = [] ): Mock_Http_Response {
 		return new static( $body, $headers );
@@ -89,7 +101,6 @@ class Mock_Http_Response implements Arrayable {
 	 * Add an array of headers to the response.
 	 *
 	 * @param array<string, string> $headers Headers to append.
-	 * @return Mock_Http_Response
 	 */
 	public function with_headers( array $headers ): Mock_Http_Response {
 		foreach ( $headers as $key => $value ) {
@@ -219,11 +230,15 @@ class Mock_Http_Response implements Arrayable {
 	 * @throws \InvalidArgumentException If the file is not readable.
 	 *
 	 * @param string $file File path.
-	 * @return Mock_Http_Response
+	 * @param string $filename Optional. Filename to use in the Content-Disposition header.
 	 */
-	public function with_file( string $file ): Mock_Http_Response {
+	public function with_file( string $file, ?string $filename = null ): Mock_Http_Response {
 		if ( ! is_readable( $file ) ) {
 			throw new \InvalidArgumentException( "File '{$file}' is not readable." );
+		}
+
+		if ( ! $filename ) {
+			$filename = basename( $file );
 		}
 
 		// Determine the mime type.
@@ -235,10 +250,33 @@ class Mock_Http_Response implements Arrayable {
 		}
 
 		if ( ! empty( $mime_type['ext'] ) ) {
-			$this->with_header( 'Content-Disposition', "attachment; filename={$file}.{$mime_type['ext']}" );
+			$this->with_header(
+				'Content-Disposition',
+				sprintf(
+					'attachment; filename="%s.%s"',
+					pathinfo( $filename, PATHINFO_FILENAME ),
+					$mime_type['ext'],
+				),
+			);
 		}
 
-		return $this->with_body( file_get_contents( $file ) ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+		return $this
+			->with_filename( $file )
+			->with_body( file_get_contents( $file ) ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
+	}
+
+	/**
+	 * Create a response with an image file as the body.
+	 *
+	 * The image will be a JPEG file.
+	 *
+	 * @param string|null $filename Optional. Filename to use in the Content-Disposition header.
+	 */
+	public function with_image( ?string $filename = null ): Mock_Http_Response {
+		return $this->with_file(
+			__DIR__ . '/data/images/canola.jpg',
+			$filename,
+		);
 	}
 
 	/**
@@ -252,8 +290,6 @@ class Mock_Http_Response implements Arrayable {
 
 	/**
 	 * Returns a Http_Client response object.
-	 *
-	 * @return \Mantle\Http_Client\Response
 	 */
 	public function to_response(): \Mantle\Http_Client\Response {
 		return \Mantle\Http_Client\Response::create( $this->response );

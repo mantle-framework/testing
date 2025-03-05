@@ -9,6 +9,7 @@ namespace Mantle\Testing;
 
 use Exception;
 use Mantle\Contracts\Application;
+use Mantle\Http\Request;
 use Mantle\Http\Response;
 use Mantle\Support\Traits\Macroable;
 use PHPUnit\Framework\Assert as PHPUnit;
@@ -17,44 +18,42 @@ use PHPUnit\Framework\Assert as PHPUnit;
  * Faux "Response" class for unit testing.
  */
 class Test_Response {
-	use Concerns\Element_Assertions,
-		Concerns\Snapshot_Testing,
-		Macroable;
+	use Concerns\Element_Assertions;
+	use Concerns\Response_Dumper;
+	use Concerns\Response_Snapshot_Testing;
+	use Macroable;
 
 	/**
 	 * Application instance.
-	 *
-	 * @var Application
 	 */
 	protected Application $app;
 
 	/**
 	 * Response headers.
 	 *
-	 * @var array
+	 * @var array<string, string|array<string>>
 	 */
 	public array $headers;
 
 	/**
 	 * Response content.
-	 *
-	 * @var string
 	 */
 	protected string $content;
 
 	/**
 	 * Response status code.
-	 *
-	 * @var int
 	 */
 	protected int $status_code;
 
 	/**
 	 * Assertable JSON string.
-	 *
-	 * @var Assertable_Json_String
 	 */
 	protected Assertable_Json_String $decoded_json;
+
+	/**
+	 * Request that generated the response.
+	 */
+	protected Request $request;
 
 	/**
 	 * Create a new test response instance.
@@ -79,12 +78,29 @@ class Test_Response {
 	 * Set the container instance.
 	 *
 	 * @param Application $app Application instance.
-	 * @return static
 	 */
-	public function set_app( Application $app ) {
+	public function set_app( Application $app ): static {
 		$this->app = $app;
 
 		return $this;
+	}
+
+	/**
+	 * Set the request that generated the response.
+	 *
+	 * @param Request $request Request instance.
+	 */
+	public function set_request( Request $request ): static {
+		$this->request = $request;
+
+		return $this;
+	}
+
+	/**
+	 * Get the request that generated the response.
+	 */
+	public function get_request(): ?Request {
+		return $this->request ?? null;
 	}
 
 	/**
@@ -111,8 +127,6 @@ class Test_Response {
 
 	/**
 	 * Retrieves the status code for the current web response.
-	 *
-	 * @return int
 	 */
 	public function get_status_code(): int {
 		return $this->status_code;
@@ -165,9 +179,8 @@ class Test_Response {
 	 *
 	 * @param string      $key     Header to return.
 	 * @param string|null $default If the header is not set, default to return.
-	 * @return string|null
 	 */
-	public function get_header( string $key, string $default = null ): ?string {
+	public function get_header( string $key, ?string $default = null ): ?string {
 		// Enforce a lowercase header name.
 		$key = strtolower( $key );
 
@@ -187,10 +200,8 @@ class Test_Response {
 
 	/**
 	 * Assert that the response has a successful status code.
-	 *
-	 * @return $this
 	 */
-	public function assertSuccessful() {
+	public function assertSuccessful(): static {
 		$actual = $this->get_status_code();
 
 		PHPUnit::assertTrue(
@@ -203,10 +214,8 @@ class Test_Response {
 
 	/**
 	 * Assert that the response has a 200 status code.
-	 *
-	 * @return $this
 	 */
-	public function assertOk() {
+	public function assertOk(): static {
 		return $this->assertStatus( 200 );
 	}
 
@@ -214,9 +223,8 @@ class Test_Response {
 	 * Assert that the response has the given status code.
 	 *
 	 * @param int $status Status code to assert.
-	 * @return $this
 	 */
-	public function assertStatus( $status ) {
+	public function assertStatus( $status ): static {
 		$actual = $this->get_status_code();
 
 		PHPUnit::assertSame(
@@ -230,10 +238,8 @@ class Test_Response {
 
 	/**
 	 * Assert that the response has a 201 status code.
-	 *
-	 * @return $this
 	 */
-	public function assertCreated() {
+	public function assertCreated(): static {
 		return $this->assertStatus( 201 );
 	}
 
@@ -241,9 +247,8 @@ class Test_Response {
 	 * Assert that the response has the given status code and no content.
 	 *
 	 * @param int $status Status code to assert. Defaults to 204.
-	 * @return $this
 	 */
-	public function assertNoContent( $status = 204 ) {
+	public function assertNoContent( $status = 204 ): static {
 		$this->assertStatus( $status );
 
 		PHPUnit::assertEmpty( $this->get_content(), 'Response content is not empty.' );
@@ -253,38 +258,59 @@ class Test_Response {
 
 	/**
 	 * Assert that the response has a not found status code.
-	 *
-	 * @return $this
 	 */
-	public function assertNotFound() {
+	public function assertNotFound(): static {
 		return $this->assertStatus( 404 );
 	}
 
 	/**
 	 * Assert that the response has a forbidden status code.
-	 *
-	 * @return $this
 	 */
-	public function assertForbidden() {
+	public function assertForbidden(): static {
 		return $this->assertStatus( 403 );
 	}
 
 	/**
 	 * Assert that the response has an unauthorized status code.
-	 *
-	 * @return $this
 	 */
-	public function assertUnauthorized() {
+	public function assertUnauthorized(): static {
 		return $this->assertStatus( 401 );
+	}
+
+	/**
+	 * Assert that the response has a client error status code.
+	 */
+	public function assertClientError(): static {
+		$status = $this->get_status_code();
+
+		PHPUnit::assertTrue(
+			$status >= 400 && $status < 500,
+			"Response status code [{$status}] is not a client error status code.",
+		);
+
+		return $this;
+	}
+
+	/**
+	 * Assert that the response has a server error status code.
+	 */
+	public function assertServerError(): static {
+		$status = $this->get_status_code();
+
+		PHPUnit::assertTrue(
+			$status >= 500 && $status < 600,
+			"Response status code [{$status}] is not a server error status code.",
+		);
+
+		return $this;
 	}
 
 	/**
 	 * Assert whether the response is redirecting to a given URI.
 	 *
 	 * @param string|null $uri URI to assert redirection to.
-	 * @return static
 	 */
-	public function assertRedirect( ?string $uri = null ) {
+	public function assertRedirect( ?string $uri = null ): static {
 		PHPUnit::assertTrue(
 			$this->is_redirect(),
 			'Response status code [' . $this->get_status_code() . '] is not a redirect status code.'
@@ -301,9 +327,8 @@ class Test_Response {
 	 * Is the response a redirect of some form?
 	 *
 	 * @param string|null $location Location to check with the redirect.
-	 * @return bool
 	 */
-	public function is_redirect( string $location = null ): bool {
+	public function is_redirect( ?string $location = null ): bool {
 		return in_array( $this->get_status_code(), [ 201, 301, 302, 303, 307, 308 ], true )
 			&& ( null === $location ?: $location === $this->get_header( 'Location' ) ); // phpcs:ignore WordPress.PHP.DisallowShortTernary.Found
 	}
@@ -388,23 +413,46 @@ class Test_Response {
 	 * Asset that the contents matches an expected value.
 	 *
 	 * @param mixed $value Contents to compare.
-	 * @return $this
 	 */
 	public function assertContent( mixed $value ): static {
 		PHPUnit::assertEquals( $value, $this->get_content() );
+
 		return $this;
 	}
 
 	/**
 	 * Assert that the given string is contained within the response.
 	 *
-	 * @param string $value String to search for.
-	 * @return $this
+	 * @param string   $needle String to search for.
+	 * @param int|null $count Number of times the string should appear.
 	 */
-	public function assertSee( $value ) {
-		PHPUnit::assertStringContainsString( (string) $value, $this->get_content() );
+	public function assertSee( string $needle, ?int $count = null ): static {
+		PHPUnit::assertStringContainsString( $needle, $this->get_content() );
+
+		if ( null !== $count ) {
+			PHPUnit::assertEquals(
+				$count,
+				substr_count( $this->get_content(), $needle ),
+				sprintf(
+					'The content does not contain the the expected string (%s) %d %s.',
+					$needle,
+					$count,
+					1 === $count ? 'time' : 'times',
+				),
+			);
+		}
 
 		return $this;
+	}
+
+	/**
+	 * Alias for assertSee().
+	 *
+	 * @param string   $needle String to search for.
+	 * @param int|null $count Number of times the string should appear.
+	 */
+	public function assertContains( string $needle, ?int $count = null ): static {
+		return $this->assertSee( $needle, $count );
 	}
 
 	/**
@@ -424,7 +472,7 @@ class Test_Response {
 				continue;
 			}
 
-			$value_position = mb_strpos( $content, $value, $position );
+			$value_position = mb_strpos( $content, (string) $value, $position );
 
 			if ( false === $value_position || $value_position < $position ) {
 				throw new Exception(
@@ -436,7 +484,7 @@ class Test_Response {
 				);
 			}
 
-			$position = $value_position + mb_strlen( $value );
+			$position = $value_position + mb_strlen( (string) $value );
 		}
 
 		return true;
@@ -754,7 +802,7 @@ class Test_Response {
 	 * @param  array|null $structure Structure to check.
 	 * @return $this
 	 */
-	public function assertJsonStructure( array $structure = null ) {
+	public function assertJsonStructure( ?array $structure = null ) {
 		$this->decoded_json()->assertStructure( $structure );
 
 		return $this;
@@ -762,8 +810,6 @@ class Test_Response {
 
 	/**
 	 * Validate and assert against the decoded JSON content.
-	 *
-	 * @return Assertable_Json_String
 	 */
 	public function decoded_json(): Assertable_Json_String {
 		if ( ! isset( $this->decoded_json ) ) {
@@ -781,119 +827,5 @@ class Test_Response {
 	 */
 	public function json( ?string $key = null ) {
 		return $this->decoded_json()->json( $key );
-	}
-
-	/**
-	 * Dump the contents of the response to the screen.
-	 *
-	 * @return static
-	 */
-	public function dump(): static {
-		$content = $this->get_content();
-
-		$json = json_decode( $content );
-
-		if ( json_last_error() === JSON_ERROR_NONE ) {
-			$content = $json;
-		}
-
-		dump( $content );
-
-		return $this;
-	}
-
-	/**
-	 * Dump the headers of the response to the screen.
-	 *
-	 * @return static
-	 */
-	public function dump_headers(): static {
-		dump( $this->headers );
-
-		return $this;
-	}
-
-	/**
-	 * Camel-case alias to dump_headers().
-	 *
-	 * @return static
-	 */
-	public function dumpHeaders(): static {
-		return $this->dump_headers();
-	}
-
-	/**
-	 * Dump the JSON, optionally by path, to the screen.
-	 *
-	 * @param string|null $path
-	 * @return static
-	 */
-	public function dump_json( ?string $path = null ): static {
-		dump( $this->json( $path ) );
-
-		return $this;
-	}
-
-	/**
-	 * Camel-case alias to dump_json().
-	 *
-	 * @param string|null $path
-	 * @return static
-	 */
-	public function dumpJson( ?string $path = null ): static {
-		return $this->dump_json( $path );
-	}
-
-	/**
-	 * Dump the content from the response and end the script.
-	 *
-	 * @return void
-	 */
-	public function dd(): void {
-		$this->dump();
-
-		exit( 1 );
-	}
-
-	/**
-	 * Dump the headers from the response and end the script.
-	 *
-	 * @return void
-	 */
-	public function dd_headers(): void {
-		$this->dump_headers();
-
-		exit( 1 );
-	}
-
-	/**
-	 * Camel-case alias to dd_headers().
-	 *
-	 * @return void
-	 */
-	public function ddHeaders(): void {
-		$this->dd_headers();
-	}
-
-	/**
-	 * Dump the JSON from the response and end the script.
-	 *
-	 * @param string|null $path
-	 * @return void
-	 */
-	public function dd_json( ?string $path = null ): void {
-		$this->dump_json( $path );
-
-		exit( 1 );
-	}
-
-	/**
-	 * Camel-case alias to dd_json().
-	 *
-	 * @param string|null $path
-	 * @return void
-	 */
-	public function ddJson( ?string $path = null ): void {
-		$this->dd_json( $path );
 	}
 }

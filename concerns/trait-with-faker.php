@@ -17,15 +17,13 @@ use Mantle\Faker\Faker_Provider;
 trait With_Faker {
 	/**
 	 * Faker instance.
-	 *
-	 * @var Generator
 	 */
 	protected Generator $faker;
 
 	/**
 	 * Setup the Faker instance.
 	 */
-	public function with_faker_set_up() {
+	public function with_faker_set_up(): void {
 		$this->faker = $this->make_faker();
 
 		$this->faker->unique( true );
@@ -33,8 +31,6 @@ trait With_Faker {
 
 	/**
 	 * Create a faker instance.
-	 *
-	 * @return Generator
 	 */
 	protected function make_faker(): Generator {
 		$locale = isset( $this->app['config'] )

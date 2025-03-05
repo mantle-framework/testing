@@ -19,20 +19,19 @@ use function Mantle\Support\Helpers\collect;
 use function Mantle\Support\Helpers\data_get;
 
 /**
- * Snapshot Testing
+ * Response Snapshot Testing
  *
  * @link https://github.com/spatie/phpunit-snapshot-assertions
  *
  * @mixin \Mantle\Testing\Test_Response
  */
-trait Snapshot_Testing {
+trait Response_Snapshot_Testing {
 	/**
 	 * Assert that the response matches a stored snapshot comparing only the content.
 	 *
 	 * Alias to `assertMatchesSnapshotContent()`.
 	 *
 	 * @param mixed ...$args Optional. Additional arguments to pass to the snapshot assertion.
-	 * @return static
 	 */
 	public function assertMatchesSnapshot( ...$args ): static {
 		return $this->assertMatchesSnapshotContent( ...$args );
@@ -45,7 +44,6 @@ trait Snapshot_Testing {
 	 * assertion against.
 	 *
 	 * @param mixed ...$args Optional. Additional arguments to pass to the snapshot assertion.
-	 * @return static
 	 */
 	public function assertMatchesSnapshotContent( ...$args ): static {
 		if ( $this->test_case ) {
@@ -67,9 +65,8 @@ trait Snapshot_Testing {
 	 * Assert that the response's HTML content matches a stored snapshot.
 	 *
 	 * @param array<string>|string|null $selectors Optional. The XPath selectors to include in the snapshot, or null to include the entire content. Defaults to the entire content.
-	 * @return static
 	 */
-	public function assertMatchesSnapshotHtml( array|string $selectors = null ): static {
+	public function assertMatchesSnapshotHtml( array|string|null $selectors = null ): static {
 		if ( ! $this->test_case ) {
 			return $this;
 		}
@@ -94,7 +91,7 @@ trait Snapshot_Testing {
 		$document->formatOutput       = true;
 
 		// To ignore HTML5 errors.
-		@$document->loadHTML( $this->get_content(), LIBXML_HTML_NODEFDTD | LIBXML_HTML_NOIMPLIED ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		@$document->loadHTML( $this->get_content(), LIBXML_HTML_NODEFDTD | LIBXML_HTML_NOIMPLIED ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged, Generic.PHP.NoSilencedErrors.Forbidden
 
 		$nodes = ( new \DOMXPath( $document ) )->query( implode( '|', $selectors ) );
 
@@ -117,7 +114,6 @@ trait Snapshot_Testing {
 	 * Assert that the response's JSON content matches a stored snapshot.
 	 *
 	 * @param array<string>|string|null $keys Optional. The keys to include in the snapshot.
-	 * @return static
 	 */
 	public function assertMatchesSnapshotJson( array|string|null $keys = null ): static {
 		if ( $this->test_case ) {
@@ -147,8 +143,6 @@ trait Snapshot_Testing {
 	 * **Note:** asserting against the headers of a response can lead to leaky tests
 	 * that break not too long after they are written. `assertMatchesSnapshotContent()`
 	 * is a better alternative.
-	 *
-	 * @return static
 	 */
 	public function assertMatchesSnapshotWithStatusAndHeaders(): static {
 		return $this
@@ -158,8 +152,6 @@ trait Snapshot_Testing {
 
 	/**
 	 * Assert that the response's status code and headers match a stored snapshot.
-	 *
-	 * @return static
 	 */
 	public function assertStatusAndHeadersMatchSnapshot(): static {
 		if ( $this->test_case ) {

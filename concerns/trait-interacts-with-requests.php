@@ -10,9 +10,10 @@
 namespace Mantle\Testing\Concerns;
 
 use Closure;
+use InvalidArgumentException;
 use Mantle\Contracts\Support\Arrayable;
 use Mantle\Http_Client\Request;
-use Mantle\Http_Client\Response;
+use Mantle\Support\Arr;
 use Mantle\Support\Collection;
 use Mantle\Support\Str;
 use Mantle\Testing\Mock_Http_Response;
@@ -29,12 +30,14 @@ use function Mantle\Support\Helpers\value;
  * Allow Mock HTTP Requests
  *
  * @mixin \PHPUnit\Framework\TestCase
+ *
+ * @phpstan-type StubCallback \Closure(string, array): (Mock_Http_Response|Arrayable|null)
  */
 trait Interacts_With_Requests {
 	/**
 	 * Storage of the callbacks to mock the requests.
 	 *
-	 * @var Collection<int, callable(string, array): Mock_Http_Response|Arrayable|WP_Error|null>
+	 * @var Collection<int, StubCallback>
 	 */
 	protected Collection $stub_callbacks;
 
@@ -54,6 +57,13 @@ trait Interacts_With_Requests {
 	protected mixed $preventing_stray_requests = false;
 
 	/**
+	 * Stray requests that should be ignored (not reported).
+	 *
+	 * @var Collection<int, string>
+	 */
+	protected Collection $ignored_strayed_requests;
+
+	/**
 	 * Recorded actual HTTP requests made during the test.
 	 *
 	 * @var Collection<int, string>
@@ -66,6 +76,7 @@ trait Interacts_With_Requests {
 	public function interacts_with_requests_set_up(): void {
 		$this->stub_callbacks           = collect();
 		$this->recorded_requests        = collect();
+		$this->ignored_strayed_requests = collect();
 		$this->recorded_actual_requests = collect();
 
 		\add_filter( 'pre_http_request', [ $this, 'pre_http_request' ], PHP_INT_MAX, 3 );
@@ -97,6 +108,15 @@ trait Interacts_With_Requests {
 	}
 
 	/**
+	 * Ignore a stray request.
+	 *
+	 * @param array<string>|string $url URL to ignore. Supports wildcard matching with *.
+	 */
+	public function ignore_stray_request( array|string $url ): void {
+		$this->ignored_strayed_requests = $this->ignored_strayed_requests->merge( $url );
+	}
+
+	/**
 	 * Fake a remote request.
 	 *
 	 * A response object could be passed with a matching URL to fake. Also supports passing
@@ -111,25 +131,32 @@ trait Interacts_With_Requests {
 	 *   $this->fake_request( 'https://testing.com/*' );
 	 *   $this->fake_request( 'https://testing.com/*' )->with_response_code( 404 )->with_body( 'test body' );
 	 *   $this->fake_request( fn () => Mock_Http_Response::create()->with_body( 'test body' ) );
+	 *   $this->fake_request( 'https://testing.com/', fn () => Mock_Http_Response::create()->with_body( 'test body' ) );
+	 *   $this->fake_request( [ 'https://example.org' => Mock_Http_Response::create()->with_body( 'test body' ) ] );
 	 *
 	 * @link https://mantle.alley.com/docs/testing/remote-requests#faking-requests Documentation
 	 *
-	 * @throws \InvalidArgumentException Thrown on invalid argument.
+	 * @throws InvalidArgumentException Thrown on invalid argument when response object passed twice.
+	 * @throws InvalidArgumentException Thrown on invalid argument.
+	 * @throws InvalidArgumentException Thrown on invalid response type.
 	 *
-	 * @template TCallableReturn of Mock_Http_Sequence|Mock_Http_Response|Arrayable
+	 * @template TCallableReturn of Mock_Http_Sequence|Mock_Http_Response|Arrayable|null
 	 *
 	 * @param (callable(string, array): TCallableReturn)|Mock_Http_Response|string|array<string, Mock_Http_Response|callable> $url_or_callback URL to fake, array of URL and response pairs, or a closure
 	 *                                                                                                                                         that will return a faked response.
 	 * @param Mock_Http_Response|callable $response Optional response object, defaults to a 200 response with no body.
-	 * @return static|Mock_Http_Response
+	 * @param string $method Optional request method to apply to, defaults to all. Does not apply to array of URL and response pairs OR callbacks.
 	 */
-	public function fake_request( Mock_Http_Response|callable|string|array|null $url_or_callback = null, Mock_Http_Response|callable $response = null ): static|Mock_Http_Response {
+	public function fake_request(
+		Mock_Http_Response|callable|string|array|null $url_or_callback = null,
+		Mock_Http_Response|callable|null $response = null,
+		?string $method = null
+	): static|Mock_Http_Response {
 		if ( is_array( $url_or_callback ) ) {
 			$this->stub_callbacks = $this->stub_callbacks->merge(
-				collect( $url_or_callback )
-					->map(
-						fn ( $response, $url_or_callback ) => $this->create_stub_request_callback( $url_or_callback, $response ),
-					)
+				collect( $url_or_callback )->map(
+					fn ( $response, $url_or_callback ) => $this->create_stub_request_callback( $url_or_callback, $response, $method ),
+				)
 			);
 
 			return $this;
@@ -142,9 +169,21 @@ trait Interacts_With_Requests {
 			return $this;
 		}
 
+		// Prevent duplicate responses from being passed.
+		if ( $url_or_callback instanceof Mock_Http_Response && $response instanceof Mock_Http_Response ) {
+			throw new InvalidArgumentException( 'Response object passed twice, only one response object should be passed.' );
+		}
+
+		// Allow for a catch-all response to be passed in the first argument.
+		if ( $url_or_callback instanceof Mock_Http_Response && ! $response ) {
+			$this->stub_callbacks->push( $this->create_stub_request_callback( '*', $url_or_callback, $method ) );
+
+			return $url_or_callback;
+		}
+
 		// Throw an exception on an unknown argument.
 		if ( ! is_string( $url_or_callback ) && ! is_null( $url_or_callback ) ) {
-			throw new \InvalidArgumentException(
+			throw new InvalidArgumentException(
 				sprintf(
 					'Expected a URL string or a callback, got %s.',
 					gettype( $url_or_callback )
@@ -160,9 +199,40 @@ trait Interacts_With_Requests {
 			$response = new Mock_Http_Response();
 		}
 
-		$this->stub_callbacks->push( $this->create_stub_request_callback( $url, $response ) );
+		// Ensure that the response is an instance of Mock_Http_Response.
+		if ( ! $response instanceof Mock_Http_Response ) {
+			throw new InvalidArgumentException( 'Response must be an instance of Mock_Http_Response or callable, ' . gettype( $response ) . ' given.' );
+		}
+
+		$this->stub_callbacks->push(
+			$this->create_stub_request_callback( $url, $response, $method ),
+		);
 
 		return $response;
+	}
+
+	/**
+	 * Fluently build a fake request sequence.
+	 *
+	 * @param string             $url URL to fake (supports * for wildcard matching).
+	 * @param string|null        $method Request method, optional.
+	 */
+	public function fake_request_sequence( string $url, ?string $method = null ): Mock_Http_Sequence {
+		$sequence = Mock_Http_Sequence::create();
+
+		$this->fake_request( [ $url => $sequence ], method: $method );
+
+		return $sequence;
+	}
+
+	/**
+	 * Create a mock HTTP response.
+	 *
+	 * @param string $body   Response body.
+	 * @param array $headers Response headers.
+	 */
+	public function mock_response( string $body = '', array $headers = [] ): Mock_Http_Response {
+		return new Mock_Http_Response( $body, $headers );
 	}
 
 	/**
@@ -180,6 +250,11 @@ trait Interacts_With_Requests {
 	 * @throws RuntimeException If the request was made without a matching faked request.
 	 */
 	public function pre_http_request( $preempt, $request_args, $url ) {
+		// Bail early if the preemption is already set.
+		if ( false !== $preempt ) {
+			return $preempt;
+		}
+
 		$request = new Request( $request_args, $url );
 
 		$this->recorded_requests[] = $request;
@@ -190,7 +265,11 @@ trait Interacts_With_Requests {
 			// If the request is for streaming the response to a file, store the
 			// response body in the requested file.
 			if ( ! is_wp_error( $stub ) && ! empty( $request_args['stream'] ) ) {
-				return $this->store_streamed_response( $url, $stub, $request_args );
+				try {
+					return $this->store_streamed_response( $url, $stub, $request_args );
+				} catch ( RuntimeException $e ) {
+					return new WP_Error( 'http_request_failed', $e->getMessage() );
+				}
 			}
 
 			return $stub;
@@ -210,12 +289,11 @@ trait Interacts_With_Requests {
 	 *
 	 * @param string $url          Request URL.
 	 * @param array  $request_args Request arguments.
-	 * @return array|WP_Error|null
 	 */
-	protected function get_stub_response( $url, $request_args ): array|WP_Error|null {
+	protected function get_stub_response( string $url, array $request_args ): array|WP_Error|null {
 		if ( ! $this->stub_callbacks->is_empty() ) {
-			foreach ( $this->stub_callbacks as $callback ) {
-				$response = $callback( $url, $request_args );
+			foreach ( $this->stub_callbacks as $stub_callback ) {
+				$response = $stub_callback( $url, $request_args );
 
 				if ( $response instanceof Mock_Http_Response || $response instanceof Arrayable ) {
 					return $response->to_array();
@@ -248,6 +326,11 @@ trait Interacts_With_Requests {
 				return $prevent->to_array();
 			}
 
+			// Check if the stray request should be ignored.
+			if ( $this->ignored_strayed_requests->contains( fn ( $ignored_url ) => Str::is( $ignored_url, $url ) ) ) {
+				return null;
+			}
+
 			throw new RuntimeException( "Attempted request to [{$url}] without a matching fake." );
 		}
 
@@ -274,7 +357,7 @@ trait Interacts_With_Requests {
 			$request_args['filename'] = get_temp_dir() . basename( $url );
 		}
 
-		if ( ! wp_is_writable( dirname( $request_args['filename'] ) ) ) {
+		if ( ! wp_is_writable( dirname( (string) $request_args['filename'] ) ) ) {
 			throw new RuntimeException( "The directory [{$request_args['filename']}] is not writable." );
 		}
 
@@ -295,11 +378,17 @@ trait Interacts_With_Requests {
 	 *
 	 * @param string                      $url URL to stub.
 	 * @param callable|Mock_Http_Response $response Response to send.
-	 * @return callable
+	 * @param string                      $method Request method, optional.
+	 * @phpstan-return StubCallback
 	 */
-	protected function create_stub_request_callback( string $url, Mock_Http_Response|callable $response ): callable {
-		return function( string $request_url, array $request_args ) use ( $url, $response ) {
+	protected function create_stub_request_callback( string $url, Mock_Http_Response|callable $response, ?string $method = null ): Closure {
+		return function ( string $request_url, array $request_args ) use ( $url, $response, $method ) {
 			if ( ! Str::is( Str::start( $url, '*' ), $request_url ) ) {
+				return;
+			}
+
+			// Validate the request method for the stub callback.
+			if ( $method && isset( $request_args['method'] ) && strtoupper( $method ) !== strtoupper( (string) $request_args['method'] ) ) {
 				return;
 			}
 
@@ -313,7 +402,6 @@ trait Interacts_With_Requests {
 	 * Get a collection of the request pairs matching the given truth test.
 	 *
 	 * @param callable $callback Callback to invoke on each request.
-	 * @return Collection
 	 */
 	protected function recorded_requests( callable $callback ): Collection {
 		if ( empty( $this->recorded_requests ) ) {
@@ -325,8 +413,6 @@ trait Interacts_With_Requests {
 
 	/**
 	 * Report any stray requests that were made during the unit test.
-	 *
-	 * @return void
 	 */
 	protected function report_stray_requests(): void {
 		if ( ! isset( $this->recorded_actual_requests ) || $this->recorded_actual_requests->is_empty() ) {
@@ -349,7 +435,7 @@ trait Interacts_With_Requests {
 	 * @param int             $expected_times Number of times the request should have been
 	 *                                        sent, optional.
 	 */
-	public function assertRequestSent( string|callable|null $url_or_callback = null, int $expected_times = null ): void {
+	public function assertRequestSent( string|callable|null $url_or_callback = null, ?int $expected_times = null ): void {
 		if ( is_null( $url_or_callback ) ) {
 			PHPUnit::assertTrue( $this->recorded_requests->is_not_empty(), 'A request was made.' );
 
@@ -391,12 +477,10 @@ trait Interacts_With_Requests {
 
 	/**
 	 * Assert that no request was sent.
-	 *
-	 * @return void
 	 */
 	public function assertNoRequestSent(): void {
 		PHPUnit::assertEmpty(
-			$this->recorded_requests,
+			$this->recorded_requests->all(),
 			'Requests were recorded',
 		);
 	}
@@ -405,7 +489,6 @@ trait Interacts_With_Requests {
 	 * Assert a specific request count was sent.
 	 *
 	 * @param int $count Request count.
-	 * @return void
 	 */
 	public function assertRequestCount( int $count ): void {
 		PHPUnit::assertCount( $count, $this->recorded_requests );

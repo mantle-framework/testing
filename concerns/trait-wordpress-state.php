@@ -18,20 +18,46 @@ use WP_Post;
  * testing.
  */
 trait WordPress_State {
+	/**
+	 * Whether the initial data structures have been created.
+	 */
+	protected static bool $initial_data_structures_created = false;
+
+	/**
+	 * Setup the WordPress State before the class is set up.
+	 */
+	public static function wordpress_state_set_up_before_class(): void {
+		// Set the default permalink structure on each test before setUp() to allow
+		// the tests to override it.
+		self::set_permalink_structure( Utils::DEFAULT_PERMALINK_STRUCTURE );
+
+		if ( ! self::$initial_data_structures_created ) {
+			// Create the initial post types/taxonomies after the default permalink
+			// structure is set.
+			create_initial_post_types();
+			create_initial_taxonomies();
+
+			flush_rewrite_rules(); // phpcs:ignore
+
+			self::$initial_data_structures_created = true;
+		}
+	}
 
 	/**
 	 * Cleans the global scope (e.g `$_GET` and `$_POST`).
 	 */
-	public function clean_up_global_scope() {
-		$_GET  = [];
-		$_POST = [];
+	public static function clean_up_global_scope(): void {
+		$_GET     = [];
+		$_POST    = [];
+		$_REQUEST = [];
+
 		self::flush_cache();
 	}
 
 	/**
 	 * Flushes the WordPress object cache.
 	 */
-	public static function flush_cache() {
+	public static function flush_cache(): void {
 		global $wp_object_cache;
 		$wp_object_cache->group_ops      = [];
 		$wp_object_cache->stats          = [];
@@ -111,7 +137,7 @@ trait WordPress_State {
 	 *
 	 * @global array $wp_meta_keys
 	 */
-	public function unregister_all_meta_keys() {
+	public function unregister_all_meta_keys(): void {
 		global $wp_meta_keys;
 		if ( ! is_array( $wp_meta_keys ) ) {
 			return;
@@ -150,7 +176,7 @@ trait WordPress_State {
 	 *
 	 * @param string $structure Optional. Permalink structure to set. Default empty.
 	 */
-	public function set_permalink_structure( $structure = '' ) {
+	public static function set_permalink_structure( $structure = '' ): void {
 		global $wp_rewrite;
 
 		$wp_rewrite->init();
@@ -161,41 +187,22 @@ trait WordPress_State {
 	/**
 	 * Updates the modified and modified GMT date of a post in the database.
 	 *
-	 * @global \wpdb $wpdb WordPress database abstraction object.
-	 *
 	 * @param WP_Post|Post|int         $post Post ID or post object.
 	 * @param DateTimeInterface|string $date Date object or string to update the
 	 *                                       post with. If a string is passed it
 	 *                                       is assumed to be local timezone.
-	 * @return int|false 1 on success, or false on error.
 	 */
-	protected function update_post_modified( WP_Post|Post|int $post, DateTimeInterface|string $date ) {
-		global $wpdb;
+	protected function update_post_modified( WP_Post|Post|int $post, DateTimeInterface|string $date ): bool {
+		$post = match ( true ) {
+			$post instanceof WP_Post => Post::for( $post->post_type )->find_or_fail( $post->ID ),
+			$post instanceof Post    => $post,
+			default                  => Post::for( get_post_type( $post ) )->find_or_fail( $post ),
+		};
 
-		$post = is_object( $post ) ? $post->ID : $post;
-		$date = $date instanceof DateTimeInterface ? Carbon::instance( $date ) : Carbon::parse( $date, wp_timezone() );
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
-		$update = $wpdb->update(
-			$wpdb->posts,
+		return $post->save(
 			[
-				'post_modified'     => $date->setTimezone( wp_timezone() )->format( 'Y-m-d H:i:s' ),
-				'post_modified_gmt' => $date->setTimezone( new \DateTimeZone( 'UTC' ) )->format( 'Y-m-d H:i:s' ),
-			],
-			[
-				'ID' => $post,
-			],
-			[
-				'%s',
-				'%s',
-			],
-			[
-				'%d',
+				'post_modified' => $date instanceof DateTimeInterface ? $date->format( 'Y-m-d H:i:s' ) : $date,
 			]
 		);
-
-		clean_post_cache( $post );
-
-		return $update;
 	}
 }
