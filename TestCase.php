@@ -14,6 +14,7 @@ use Mantle\Database\Model\Model;
 use Mantle\Facade\Facade;
 use Mantle\Framework\Alias_Loader;
 use Mantle\Support\Collection;
+use Mantle\Support\Memoize;
 use Mantle\Testing\Concerns\Admin_Screen;
 use Mantle\Testing\Concerns\Assertions;
 use Mantle\Testing\Concerns\Core_Shim;
@@ -107,6 +108,8 @@ abstract class TestCase extends BaseTestCase {
 			\Spatie\Once\Cache::getInstance()->disable();
 		}
 
+		Memoize::disable();
+
 		static::register_traits();
 
 		if ( ! empty( static::$test_uses ) ) {
@@ -146,9 +149,14 @@ abstract class TestCase extends BaseTestCase {
 
 		if ( isset( static::$test_uses[ Refresh_Database::class ] ) ) {
 			Utils::delete_all_data();
-		}
 
-		static::flush_cache();
+			if ( is_multisite() ) {
+				Utils::delete_all_blogs();
+			}
+		} else {
+			// If Refresh_Database is not used, we should still clear out the cache.
+			Utils::flush_cache();
+		}
 
 		if ( isset( static::$test_uses[ Refresh_Database::class ] ) && method_exists( static::class, 'commit_transaction' ) ) {
 			static::commit_transaction();
@@ -339,6 +347,8 @@ abstract class TestCase extends BaseTestCase {
 		}
 
 		Model::set_event_dispatcher( $this->app['events'] );
+
+		$this->app[ self::class ] = $this;
 	}
 
 	/**
