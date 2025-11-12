@@ -7,8 +7,6 @@
  * @package Mantle
  */
 
-declare(strict_types=1);
-
 namespace Mantle\Testing;
 
 use InvalidArgumentException;
@@ -258,7 +256,6 @@ class Pending_Testable_Request {
 	 *
 	 * @throws \Exception Exceptions thrown while setting up the WordPress query are re-thrown to the caller.
 	 * @throws InvalidArgumentException If the request is to an unsupported path.
-	 * @throws RuntimeException If the application instance is not available on the test case.
 	 *
 	 * @param string      $method     Request method.
 	 * @param mixed       $uri        Request URI.
@@ -286,7 +283,7 @@ class Pending_Testable_Request {
 			$url = $uri;
 		}
 
-		$path = (string) wp_parse_url( $url, PHP_URL_PATH );
+		$path = wp_parse_url( $url, PHP_URL_PATH );
 
 		// Check if the user is requesting a call to a path that the testing
 		// framework does not support.
@@ -359,7 +356,7 @@ class Pending_Testable_Request {
 
 			if ( $response instanceof \Symfony\Component\HttpFoundation\Response ) {
 				$response = new Test_Response(
-					$response->getContent() ?: null,
+					$response->getContent(),
 					$response->getStatusCode(),
 					$response->headers->all(),
 					$this->test_case,
@@ -443,10 +440,6 @@ class Pending_Testable_Request {
 				$response_headers,
 				$this->test_case,
 			);
-		}
-
-		if ( ! $this->test_case->app ) {
-			throw new RuntimeException( 'The application instance is not available on the test case.' );
 		}
 
 		$response
@@ -679,11 +672,7 @@ class Pending_Testable_Request {
 
 		$scheme = wp_parse_url( home_url(), PHP_URL_SCHEME );
 
-		if ( empty( $scheme ) ) {
-			$scheme = 'http';
-		}
-
-		return in_array( $scheme, [ 'http', 'https' ], true ) ? $scheme : 'http';
+		return empty( $scheme ) ? 'http' : $scheme;
 	}
 
 	/**
@@ -698,7 +687,7 @@ class Pending_Testable_Request {
 	 */
 	protected function get_default_url_host(): string {
 		return $this->is_experimental_use_home_url_host_enabled()
-			? (string) wp_parse_url( home_url(), PHP_URL_HOST )
+			? wp_parse_url( home_url(), PHP_URL_HOST )
 			: WP_TESTS_DOMAIN;
 	}
 
@@ -736,9 +725,9 @@ class Pending_Testable_Request {
 
 			if ( $server->sent_body !== null ) {
 				$this->rest_api_response = [
-					'body'    => $server->sent_body ?? '',
-					'headers' => $server->sent_headers ?? [],
-					'status'  => $server->sent_status ?? 200,
+					'body'    => $server->sent_body,
+					'headers' => $server->sent_headers,
+					'status'  => $server->sent_status,
 				];
 			}
 		} else {
@@ -796,7 +785,7 @@ class Pending_Testable_Request {
 	 * @throws RuntimeException If not implemented.
 	 */
 	public function json( string $method, string $uri, array $data = [], array $headers = [], int $options = 1 ): Test_Response {
-		$content = (string) json_encode( $data, $options ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
+		$content = json_encode( $data, $options ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
 
 		$headers = array_merge(
 			$headers,

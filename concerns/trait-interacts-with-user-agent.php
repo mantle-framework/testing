@@ -34,16 +34,12 @@ trait Interacts_With_User_Agent {
 		$attributes = collect( $this->get_attributes_for_method( UserAgent::class ) );
 
 		if ( ! $attributes->is_empty() ) {
-			$ua = $attributes->first()?->newInstance()->ua;
+			$this->set_user_agent( $attributes->first()->newInstance()->ua );
 
-			if ( $ua ) {
-				$this->set_user_agent( $ua );
-
-				// Set the user agent for any request being made.
-				$this->before_request( function (): void {
-					$_SERVER['HTTP_USER_AGENT'] = $this->set_user_agent;
-				} );
-			}
+			// Set the user agent for any request being made.
+			$this->before_request( function (): void {
+				$_SERVER['HTTP_USER_AGENT'] = $this->set_user_agent;
+			} );
 		}
 	}
 

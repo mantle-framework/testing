@@ -62,7 +62,9 @@ trait Interacts_With_Environment {
 			return null;
 		}
 
-		return $attributes->first()?->newInstance()->environment;
+		$attribute = $attributes->first();
+
+		return $attribute->newInstance()->environment;
 	}
 
 	/**

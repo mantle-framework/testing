@@ -26,14 +26,14 @@ class Assertable_Json_String implements ArrayAccess, Countable {
 	/**
 	 * The decoded JSON contents.
 	 */
-	protected array $decoded;
+	protected ?array $decoded = null;
 
 	/**
 	 * Constructor.
 	 *
 	 * @param string|array|Jsonable|JsonSerializable $json The original encoded JSON.
 	 */
-	public function __construct( public string|array|Jsonable|JsonSerializable $json ) {
+	public function __construct( public $json ) {
 		if ( $this->json instanceof JsonSerializable ) {
 			$this->decoded = $this->json->jsonSerialize();
 		} elseif ( $this->json instanceof Jsonable ) {
@@ -47,12 +47,10 @@ class Assertable_Json_String implements ArrayAccess, Countable {
 				PHPUnit::fail( 'Invalid JSON was returned from the response: ' . json_last_error_msg() );
 			}
 
-			if ( is_array( $decoded ) ) {
-				$this->decoded = $decoded;
-			}
+			$this->decoded = is_array( $decoded ) ? $decoded : null;
 		}
 
-		if ( ! isset( $this->decoded ) ) {
+		if ( null === $this->decoded ) {
 			PHPUnit::fail( 'Invalid JSON was returned from the response.' );
 		}
 	}
@@ -60,7 +58,7 @@ class Assertable_Json_String implements ArrayAccess, Countable {
 	/**
 	 * Retrieve the decoded JSON.
 	 */
-	public function get_decoded(): ?array {
+	public function get_decoded(): array {
 		return $this->decoded;
 	}
 
@@ -222,7 +220,7 @@ class Assertable_Json_String implements ArrayAccess, Countable {
 	 */
 	public function assertSimilar( array $data ): static {
 		$actual = json_encode( Arr::sort_recursive(
-			$this->decoded
+			(array) $this->decoded
 		) );
 
 		PHPUnit::assertEquals( json_encode( Arr::sort_recursive( $data ) ), $actual );
@@ -248,7 +246,7 @@ class Assertable_Json_String implements ArrayAccess, Countable {
 
 		foreach ( $structure as $key => $value ) {
 			if ( is_array( $value ) && '*' === $key ) {
-				PHPUnit::assertIsArray( $this->decoded ); // @phpstan-ignore-line
+				PHPUnit::assertIsArray( $this->decoded );
 
 				foreach ( $this->decoded as $item ) {
 					$this->assertStructure( $structure['*'], $item );
@@ -288,7 +286,7 @@ class Assertable_Json_String implements ArrayAccess, Countable {
 	 * @param  array $data Data to compare.
 	 */
 	public function assertFragment( array $data ): static {
-		$actual = (string) wp_json_encode(
+		$actual = wp_json_encode(
 			Arr::sort_recursive(
 				(array) $this->json()
 			)
@@ -320,7 +318,7 @@ class Assertable_Json_String implements ArrayAccess, Countable {
 			return $this->assertMissingExact( $data );
 		}
 
-		$actual = (string) wp_json_encode(
+		$actual = wp_json_encode(
 			Arr::sort_recursive(
 				(array) $this->json()
 			)
@@ -347,7 +345,7 @@ class Assertable_Json_String implements ArrayAccess, Countable {
 	 * @param  array $data
 	 */
 	public function assertMissingExact( array $data ): static {
-		$actual = (string) wp_json_encode(
+		$actual = wp_json_encode(
 			Arr::sort_recursive(
 				(array) $this->json()
 			)
