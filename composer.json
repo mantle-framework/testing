@@ -15,7 +15,6 @@
     ],
     "require": {
         "php": "^8.2",
-        "alleyinteractive/composer-wordpress-autoloader": "^1.0",
         "mantle-framework/contracts": "^1.0",
         "mantle-framework/database": "^1.0",
         "mantle-framework/faker": "^1.0",
