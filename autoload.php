@@ -20,33 +20,7 @@ use PHPUnit\Framework\AssertionFailedError;
 use function Mantle\Support\Helpers\tap;
 
 require_once __DIR__ . '/preload.php';
-require_once __DIR__ . '/mail/helpers.php';
-
-/**
- * While we are in a transition state with using PSR-4 coding style in tests,
- * the actual mantle-framework/testing package is still written in
- * WordPress-style code. This doesn't sit well when using select class names in
- * PSR-4 code. For the time being, we will manually require the files.
- *
- * We cannot use Composer's PSR-4 autoloader because the folder names are lower
- * case and folder names are case sensitive on some file systems (e.g. Linux).
- *
- * Mantle 2.0 should be fully PSR-4 compliant, at which point these
- * file-requires will be removed.
- */
-
-$attribute_classes = [
-	Attributes\Environment::class         => '/attributes/Environment.php',
-	Attributes\PermalinkStructure::class  => '/attributes/PermalinkStructure.php',
-	Attributes\PreserveObjectCache::class => '/attributes/PreserveObjectCache.php',
-	Attributes\UserAgent::class           => '/attributes/UserAgent.php',
-];
-
-foreach ( $attribute_classes as $attribute_class => $attribute_class_path ) {
-	if ( ! class_exists( $attribute_class ) ) {
-		require_once __DIR__ . $attribute_class_path;
-	}
-}
+require_once __DIR__ . '/Mail/helpers.php';
 
 if ( ! function_exists( __NAMESPACE__ . '\\manager' ) ) {
 	/**
